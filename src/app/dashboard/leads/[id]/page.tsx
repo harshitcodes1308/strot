@@ -65,7 +65,7 @@ export default function LeadDetailPage() {
             <button 
               onClick={() => outreachMutation.mutate({ leadId: id, format: draftFormat })}
               disabled={outreachMutation.isPending}
-              className="bg-[var(--primary)] text-black px-4 py-2 rounded-md font-medium hover:bg-teal-400 disabled:opacity-50"
+              className="bg-[var(--primary)] text-white px-4 py-2 rounded-md font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50"
             >
               {outreachMutation.isPending ? "Generating..." : "Generate AI Draft"}
             </button>
@@ -86,7 +86,7 @@ export default function LeadDetailPage() {
           <button 
             onClick={() => meetingMutation.mutate({ leadId: id })}
             disabled={meetingMutation.isPending}
-            className="bg-[var(--primary)] text-black px-4 py-2 rounded-md font-medium hover:bg-teal-400 disabled:opacity-50"
+            className="bg-[var(--primary)] text-white px-4 py-2 rounded-md font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {meetingMutation.isPending ? "Preparing Briefing..." : "Generate Meeting Briefing"}
           </button>
