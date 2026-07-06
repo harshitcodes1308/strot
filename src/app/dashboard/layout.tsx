@@ -57,39 +57,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             borderBottom: "1px solid var(--border-subtle)",
             display: "flex",
             alignItems: "center",
-            padding: "0 14px",
+            padding: collapsed ? "0" : "0 14px",
+            justifyContent: collapsed ? "center" : "flex-start",
             gap: 10,
             flexShrink: 0,
             cursor: "pointer",
           }}
           onClick={() => setCollapsed(c => !c)}
         >
-          <div
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: "var(--r-md)",
-              background: "var(--primary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <span
-              className="display"
-              style={{ fontSize: 12, color: "white", letterSpacing: "-0.04em" }}
-            >
-              S
-            </span>
-          </div>
-          {!collapsed && (
-            <span
-              className="display"
-              style={{ fontSize: 16, color: "var(--ink)", letterSpacing: "-0.04em", whiteSpace: "nowrap" }}
-            >
-              STROT
-            </span>
+          {collapsed ? (
+            <img
+              src="/logo-icon.png"
+              alt="Strot Icon"
+              style={{ width: 24, height: 24, objectFit: "contain" }}
+            />
+          ) : (
+            <img
+              src="/logo.png"
+              alt="Strot Logo"
+              style={{ height: 24, objectFit: "contain" }}
+            />
           )}
         </div>
 
