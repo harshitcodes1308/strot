@@ -113,8 +113,27 @@ export class WebsiteScraper implements LeadSourceScraper {
      * if (url) return [await this._crawlUrl(url, cfg)];
      */
 
-    console.log(`[Website] fetch called: query="${params.query}"`);
-    return [];
+    const isDomain = params.query.includes(".") && !params.query.includes(" ");
+    if (isDomain) {
+      return [await this._crawlUrl(params.query, cfg)];
+    }
+
+    const { url } = params as any;
+    if (url) {
+      return [await this._crawlUrl(url, cfg)];
+    }
+
+    console.log(`[Website] fetch called with non-domain query "${params.query}", falling back to mock discovery.`);
+    await new Promise(r => setTimeout(r, 800));
+    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
+      id: `web-mock-${Date.now()}-${i}`,
+      sourceId: this.id,
+      raw: {
+        title: `${params.query} - Official Site ${i}`,
+        url: `https://www.${params.query.replace(/\s+/g, "").toLowerCase()}${i}.com`,
+        html: "<html><body><script src='wp-includes/js/wp-emoji-release.min.js'></script></body></html>",
+      }
+    }));
   }
 
   /**
@@ -124,26 +143,32 @@ export class WebsiteScraper implements LeadSourceScraper {
     url: string,
     cfg: BrowserConfig
   ): Promise<RawLeadData> {
-    /**
-     * PRODUCTION:
-     * const { chromium } = await import("playwright");
-     * const browser = await chromium.launch({ headless: true, proxy: cfg.proxy });
-     * const page = await browser.newPage();
-     *
-     * const response = await page.goto(url, { waitUntil: "networkidle", timeout: cfg.timeout });
-     * const html = await page.content();
-     * const headers = response?.headers() ?? {};
-     * const statusCode = response?.status() ?? 0;
-     *
-     * // Also fetch PageSpeed score
-     * const domain = new URL(url).hostname;
-     * const psScore = await this._fetchPageSpeedScore(domain);
-     *
-     * await browser.close();
-     * return { sourceId: "website", raw: { url, html, headers, statusCode, psScore } };
-     */
+    try {
+      const { chromium } = await import("playwright-extra");
+      const stealth = await (import("puppeteer-extra-plugin-stealth") as any);
+      chromium.use(stealth.default());
 
-    return { sourceId: "website", raw: { url } };
+      const browser = await chromium.launch({ headless: true, proxy: cfg.proxy ? { server: cfg.proxy.server } : undefined });
+      const context = await browser.newContext({ userAgent: cfg.userAgent });
+      const page = await context.newPage();
+
+      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: cfg.timeout });
+      const html = await page.content();
+      const title = await page.title();
+      const headers = response?.headers() ?? {};
+      const statusCode = response?.status() ?? 0;
+
+      // Also fetch PageSpeed score
+      const domain = new URL(url).hostname;
+      const psScore = await this._fetchPageSpeedScore(domain);
+
+      await browser.close();
+      return { sourceId: "website", raw: { url, html, headers, statusCode, psScore, title } };
+    } catch (e: any) {
+      console.warn(`[Website] Failed to crawl ${url}:`, e.message);
+      // Fallback for MVP if playwright fails
+      return { sourceId: "website", raw: { url } };
+    }
   }
 
   /**

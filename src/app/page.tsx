@@ -12,6 +12,7 @@ import {
   ArrowUpRight,
   SquaresFour,
   Export,
+  Sparkle,
 } from "@phosphor-icons/react";
 
 const EASE = [0.16, 1, 0.3, 1] as const;

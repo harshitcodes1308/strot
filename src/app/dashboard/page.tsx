@@ -64,7 +64,7 @@ function SourcePills({ sources }: { sources: LeadSource[] }) {
     <div style={{ display: "flex", gap: 4 }}>
       {sources.map(s => {
         const Icon = SOURCE_ICONS[s];
-        const cls = `source-${s === "producthunt" ? "ph" : s}`;
+        const cls = `source-${s}`;
         return (
           <span key={s} className={`source-pill ${cls}`} style={{ fontSize: 10, gap: 4 }}>
             <Icon size={9} weight="fill" />

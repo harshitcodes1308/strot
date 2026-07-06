@@ -39,7 +39,6 @@ export const MOCK_LEADS: Lead[] = [
       category: "Architecture Firm",
       address: "100 Park Ave, New York, NY",
       phone: "+1 212-555-0101",
-      hasSSL: true,
       claimedListing: true,
     },
     website: {
