@@ -64,4 +64,14 @@ export const leadsRouter = createTRPCRouter({
         },
       });
     }),
+    
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const lead = await ctx.db.lead.findUnique({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
+      });
+      if (!lead) throw new Error("Lead not found");
+      return lead;
+    }),
 });

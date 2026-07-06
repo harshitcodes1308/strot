@@ -1,0 +1,35 @@
+/* Injected button styling */
+#strot-extension-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #0d9488;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 50px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 999999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border: none;
+  transition: transform 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#strot-extension-btn:hover {
+  transform: translateY(-2px);
+  background-color: #0f766e;
+}
+
+#strot-extension-btn.strot-success {
+  background-color: #10b981;
+}
+
+#strot-extension-btn.strot-loading {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
