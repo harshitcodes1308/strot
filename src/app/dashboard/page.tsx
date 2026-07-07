@@ -2,32 +2,29 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Link from "next/link";
 import {
   MagnifyingGlass,
   Export,
-  Tag,
-  FolderSimple,
   Pencil,
   Trash,
   ArrowUpRight,
-  Star,
-  LinkedinLogo,
-  InstagramLogo,
-  Globe,
-  MapPin,
   SlidersHorizontal,
   X,
   CheckSquare,
   Square,
+  Sparkle,
+  User
 } from "@phosphor-icons/react";
-import { MOCK_LEADS, MOCK_FOLDERS, downloadCSV } from "@/lib/mock-data";
-import { Lead, LeadStatus, LeadSource } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
+import { downloadCSV } from "@/lib/mock-data";
+import { LeadStatus, LeadSource } from "@/lib/types";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-type SortKey = "savedAt" | "name" | "status";
+type SortKey = "savedAt" | "name" | "status" | "matchScore";
 
-const STATUS_OPTS: { value: LeadStatus; label: string; badge: string; dot: string }[] = [
+const STATUS_OPTS: { value: string; label: string; badge: string; dot: string }[] = [
   { value: "new",    label: "New",    badge: "badge-primary", dot: "status-dot-new"    },
   { value: "active", label: "Active", badge: "badge-success", dot: "status-dot-active" },
   { value: "warm",   label: "Warm",   badge: "badge-warning", dot: "status-dot-warm"   },
@@ -35,22 +32,8 @@ const STATUS_OPTS: { value: LeadStatus; label: string; badge: string; dot: strin
   { value: "closed", label: "Closed", badge: "badge-error",   dot: "status-dot-closed" },
 ];
 
-const SOURCE_ICONS: Record<LeadSource, typeof MapPin> = {
-  google_maps: MapPin,
-  linkedin:    LinkedinLogo,
-  instagram:   InstagramLogo,
-  website:     Globe,
-};
-
-const SOURCE_LABELS: Record<LeadSource, string> = {
-  google_maps: "Maps",
-  linkedin:    "LinkedIn",
-  instagram:   "Instagram",
-  website:     "Web",
-};
-
-function StatusBadge({ status }: { status: LeadStatus }) {
-  const opt = STATUS_OPTS.find(o => o.value === status)!;
+function StatusBadge({ status }: { status: string }) {
+  const opt = STATUS_OPTS.find(o => o.value === status) || STATUS_OPTS[0];
   return (
     <span className={`badge ${opt.badge}`} style={{ fontSize: 11, gap: 5 }}>
       <span className={`status-dot ${opt.dot}`} />
@@ -59,16 +42,21 @@ function StatusBadge({ status }: { status: LeadStatus }) {
   );
 }
 
-function SourcePills({ sources }: { sources: LeadSource[] }) {
+function SourcePills({ sources }: { sources: string[] }) {
+  const SOURCE_LABELS: Record<string, string> = {
+    google_maps: "Maps",
+    linkedin:    "LinkedIn",
+    instagram:   "Instagram",
+    website:     "Web",
+  };
+
   return (
     <div style={{ display: "flex", gap: 4 }}>
       {sources.map(s => {
-        const Icon = SOURCE_ICONS[s];
         const cls = `source-${s}`;
         return (
           <span key={s} className={`source-pill ${cls}`} style={{ fontSize: 10, gap: 4 }}>
-            <Icon size={9} weight="fill" />
-            {SOURCE_LABELS[s]}
+            {SOURCE_LABELS[s] || s}
           </span>
         );
       })}
@@ -77,16 +65,35 @@ function SourcePills({ sources }: { sources: LeadSource[] }) {
 }
 
 export default function AllLeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  const { data: dbLeads, isLoading, refetch } = trpc.leads.listSaved.useQuery();
+  const { data: matches } = trpc.agency.getMatchmaking.useQuery();
+
+  const updateStatusMutation = trpc.leads.updateStatus.useMutation({ onSuccess: () => refetch() });
+  const deleteMutation = trpc.leads.delete.useMutation({ onSuccess: () => refetch() });
+  const saveNoteMutation = trpc.leads.updateNotes.useMutation({ onSuccess: () => refetch() });
+
   const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<LeadStatus | "">("");
-  const [selectedFolder, setSelectedFolder] = useState<string>("");
-  const [selectedSource, setSelectedSource] = useState<LeadSource | "">("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedSource, setSelectedSource] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortKey>("savedAt");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Map db leads with match scores
+  const leads = useMemo(() => {
+    if (!dbLeads) return [];
+    return dbLeads.map((l) => {
+      const match = matches?.find((m) => m.leadId === l.id);
+      return {
+        ...l,
+        savedAt: new Date(l.createdAt),
+        matchScore: match?.score ?? 0,
+        summary: match?.summary || "",
+      };
+    });
+  }, [dbLeads, matches]);
 
   const filtered = useMemo(() => {
     let res = leads;
@@ -94,21 +101,20 @@ export default function AllLeadsPage() {
       const q = search.toLowerCase();
       res = res.filter(l =>
         l.name.toLowerCase().includes(q) ||
-        l.domain.toLowerCase().includes(q) ||
-        l.industry?.toLowerCase().includes(q) ||
-        l.tags.some(t => t.toLowerCase().includes(q))
+        (l.domain && l.domain.toLowerCase().includes(q)) ||
+        (l.industry && l.industry.toLowerCase().includes(q))
       );
     }
     if (selectedStatus) res = res.filter(l => l.status === selectedStatus);
-    if (selectedFolder) res = res.filter(l => l.folderId === selectedFolder);
-    if (selectedSource) res = res.filter(l => l.sources.includes(selectedSource as LeadSource));
+    if (selectedSource) res = res.filter(l => l.sources.includes(selectedSource));
 
     return [...res].sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "status") return a.status.localeCompare(b.status);
+      if (sortBy === "matchScore") return b.matchScore - a.matchScore;
       return b.savedAt.getTime() - a.savedAt.getTime();
     });
-  }, [leads, search, selectedStatus, selectedFolder, selectedSource, sortBy]);
+  }, [leads, search, selectedStatus, selectedSource, sortBy]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -131,26 +137,30 @@ export default function AllLeadsPage() {
     const toExport = selectedIds.size > 0
       ? leads.filter(l => selectedIds.has(l.id))
       : filtered;
-    downloadCSV(toExport);
+    downloadCSV(toExport as any);
   }, [leads, filtered, selectedIds]);
 
-  const updateStatus = useCallback((id: string, status: LeadStatus) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
-  }, []);
+  const updateStatus = useCallback((id: string, status: string) => {
+    updateStatusMutation.mutate({ id, status });
+  }, [updateStatusMutation]);
 
   const deleteLead = useCallback((id: string) => {
-    setLeads(prev => prev.filter(l => l.id !== id));
+    deleteMutation.mutate({ id });
     setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-  }, []);
+  }, [deleteMutation]);
 
   const saveNote = useCallback((id: string) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, notes: noteText } : l));
+    saveNoteMutation.mutate({ id, notes: noteText });
     setEditingNote(null);
     setNoteText("");
-  }, [noteText]);
+  }, [saveNoteMutation, noteText]);
 
   const allSelected = filtered.length > 0 && selectedIds.size === filtered.length;
   const hasSelection = selectedIds.size > 0;
+
+  if (isLoading) {
+    return <div className="p-8 text-[var(--ink)]">Loading leads dashboard...</div>;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
@@ -198,77 +208,54 @@ export default function AllLeadsPage() {
             <button
               className="btn btn-ghost"
               style={{ fontSize: 12, gap: 5 }}
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.size} selected leads?`)) {
+                  selectedIds.forEach(id => deleteLead(id));
+                }
+              }}
             >
-              <X size={13} /> Clear
+              <Trash size={13} /> Delete
             </button>
           </motion.div>
         )}
 
-        <button
-          className="btn btn-secondary"
-          style={{ fontSize: 12, gap: 5 }}
-          onClick={() => setShowFilters(f => !f)}
-        >
-          <SlidersHorizontal size={13} />
-          Filters
-          {(selectedStatus || selectedFolder || selectedSource) && (
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--primary)" }} />
-          )}
-        </button>
-
-        <button
-          className="btn btn-secondary"
-          style={{ fontSize: 12, gap: 5 }}
-          onClick={handleExport}
-        >
-          <Export size={13} />
-          Export CSV
-        </button>
-      </div>
-
-      {/* ── Search + Filters row ─────────────────────────────────────── */}
-      <div
-        style={{
-          borderBottom: "1px solid var(--border-subtle)",
-          padding: "10px 20px",
-          display: "flex",
-          gap: 8,
-          flexShrink: 0,
-          background: "var(--bg)",
-          flexWrap: "wrap",
-        }}
-      >
         {/* Search */}
-        <div style={{ position: "relative", flex: "1 1 240px" }}>
+        <div style={{ position: "relative", width: 220 }}>
           <MagnifyingGlass
-            size={13}
+            size={14}
             color="var(--ink-muted)"
-            style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+            style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}
           />
           <input
-            className="input"
-            placeholder="Search leads by name, domain, industry, tag..."
+            type="text"
+            placeholder="Search leads..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ paddingLeft: 30, fontSize: 13 }}
+            style={{
+              width: "100%",
+              height: 32,
+              background: "var(--surface-raised)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-md)",
+              padding: "0 10px 0 30px",
+              fontSize: 12,
+              color: "var(--ink)",
+              outline: "none",
+            }}
           />
         </div>
 
-        {/* Sort */}
-        <select
-          className="input"
-          style={{ width: "auto", paddingRight: 28, fontSize: 12, cursor: "pointer" }}
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as SortKey)}
+        {/* Filter Toggle */}
+        <button
+          className={`btn btn-secondary${showFilters ? " active" : ""}`}
+          onClick={() => setShowFilters(f => !f)}
+          style={{ height: 32, padding: "0 10px" }}
         >
-          <option value="savedAt">Newest first</option>
-          <option value="name">Name A–Z</option>
-          <option value="status">By status</option>
-        </select>
+          <SlidersHorizontal size={14} />
+        </button>
       </div>
 
-      {/* Filter panel */}
+      {/* ── Filters panel ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {showFilters && (
           <motion.div
@@ -276,66 +263,97 @@ export default function AllLeadsPage() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: EASE }}
-            style={{ overflow: "hidden", flexShrink: 0 }}
+            style={{
+              background: "var(--surface)",
+              borderBottom: "1px solid var(--border-subtle)",
+              overflow: "hidden",
+            }}
           >
-            <div
-              style={{
-                borderBottom: "1px solid var(--border-subtle)",
-                padding: "12px 20px",
-                display: "flex",
-                gap: 20,
-                alignItems: "center",
-                background: "var(--surface)",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "var(--ink-muted)", whiteSpace: "nowrap" }}>Status</span>
+            <div style={{ padding: "16px 20px", display: "flex", gap: 20, alignItems: "flex-end" }}>
+              {/* Status filter */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-muted)", textTransform: "uppercase" }}>Status</span>
                 <select
-                  className="input"
-                  style={{ width: "auto", fontSize: 12, cursor: "pointer" }}
                   value={selectedStatus}
-                  onChange={e => setSelectedStatus(e.target.value as LeadStatus | "")}
+                  onChange={e => setSelectedStatus(e.target.value)}
+                  style={{
+                    background: "var(--surface-raised)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-sm)",
+                    color: "var(--ink)",
+                    fontSize: 12,
+                    height: 28,
+                    padding: "0 8px",
+                    outline: "none",
+                  }}
                 >
-                  <option value="">All statuses</option>
-                  {STATUS_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  <option value="">All Statuses</option>
+                  {STATUS_OPTS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "var(--ink-muted)", whiteSpace: "nowrap" }}>Folder</span>
+              {/* Source filter */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-muted)", textTransform: "uppercase" }}>Source</span>
                 <select
-                  className="input"
-                  style={{ width: "auto", fontSize: 12, cursor: "pointer" }}
-                  value={selectedFolder}
-                  onChange={e => setSelectedFolder(e.target.value)}
-                >
-                  <option value="">All folders</option>
-                  {MOCK_FOLDERS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "var(--ink-muted)", whiteSpace: "nowrap" }}>Source</span>
-                <select
-                  className="input"
-                  style={{ width: "auto", fontSize: 12, cursor: "pointer" }}
                   value={selectedSource}
-                  onChange={e => setSelectedSource(e.target.value as LeadSource | "")}
+                  onChange={e => setSelectedSource(e.target.value)}
+                  style={{
+                    background: "var(--surface-raised)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-sm)",
+                    color: "var(--ink)",
+                    fontSize: 12,
+                    height: 28,
+                    padding: "0 8px",
+                    outline: "none",
+                  }}
                 >
-                  <option value="">All sources</option>
-                  <option value="google">Google Maps</option>
-                  <option value="github">GitHub</option>
-                  <option value="producthunt">Product Hunt</option>
-                  <option value="web">Web</option>
+                  <option value="">All Sources</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="google_maps">Google Maps</option>
+                  <option value="website">Website</option>
                 </select>
               </div>
 
-              {(selectedStatus || selectedFolder || selectedSource) && (
+              {/* Sorting */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-muted)", textTransform: "uppercase" }}>Sort by</span>
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as SortKey)}
+                  style={{
+                    background: "var(--surface-raised)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-sm)",
+                    color: "var(--ink)",
+                    fontSize: 12,
+                    height: 28,
+                    padding: "0 8px",
+                    outline: "none",
+                  }}
+                >
+                  <option value="savedAt">Date Saved</option>
+                  <option value="name">Company Name</option>
+                  <option value="status">Status</option>
+                  <option value="matchScore">Smart Match Score</option>
+                </select>
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              {/* Reset */}
+              {(selectedStatus || selectedSource) && (
                 <button
                   className="btn btn-ghost"
-                  style={{ fontSize: 12, gap: 4, color: "var(--error)" }}
-                  onClick={() => { setSelectedStatus(""); setSelectedFolder(""); setSelectedSource(""); }}
+                  style={{ fontSize: 12, height: 28, gap: 5, padding: "0 8px" }}
+                  onClick={() => {
+                    setSelectedStatus("");
+                    setSelectedSource("");
+                  }}
                 >
                   <X size={12} /> Clear filters
                 </button>
@@ -368,18 +386,17 @@ export default function AllLeadsPage() {
                   </button>
                 </th>
                 <th>Company</th>
+                <th>Match Score</th>
                 <th>Status</th>
+                <th>Assignee</th>
                 <th>Sources</th>
                 <th>Industry</th>
-                <th>Tags</th>
-                <th>Folder</th>
                 <th>Saved</th>
-                <th style={{ width: 80 }}></th>
+                <th style={{ width: 100 }}></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((lead, i) => {
-                const folder = MOCK_FOLDERS.find(f => f.id === lead.folderId);
                 const isSelected = selectedIds.has(lead.id);
                 return (
                   <motion.tr
@@ -426,13 +443,26 @@ export default function AllLeadsPage() {
                           {lead.name[0]}
                         </div>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+                          <Link
+                            href={`/dashboard/leads/${lead.id}`}
+                            className="hover:underline text-[var(--ink)] font-medium font-sans text-[13px] tracking-tight block"
+                          >
                             {lead.name}
-                          </div>
+                          </Link>
                           <div className="mono" style={{ fontSize: 11, color: "var(--ink-muted)" }}>
-                            {lead.domain}
+                            {lead.domain || "No domain"}
                           </div>
                         </div>
+                      </div>
+                    </td>
+
+                    {/* Match Score */}
+                    <td>
+                      <div className="flex items-center gap-1.5 font-display font-bold text-sm">
+                        <Sparkle size={12} className="text-[var(--accent)]" />
+                        <span className={lead.matchScore >= 80 ? "text-[var(--success)]" : "text-white"}>
+                          {lead.matchScore}%
+                        </span>
                       </div>
                     </td>
 
@@ -440,7 +470,7 @@ export default function AllLeadsPage() {
                     <td>
                       <select
                         value={lead.status}
-                        onChange={e => updateStatus(lead.id, e.target.value as LeadStatus)}
+                        onChange={e => updateStatus(lead.id, e.target.value)}
                         style={{
                           background: "transparent",
                           border: "none",
@@ -453,9 +483,21 @@ export default function AllLeadsPage() {
                         }}
                       >
                         {STATUS_OPTS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
+                          <option key={o.value} value={o.value} className="bg-[var(--surface-raised)]">{o.label}</option>
                         ))}
                       </select>
+                    </td>
+
+                    {/* Assignee */}
+                    <td>
+                      {lead.assignedTo ? (
+                        <div className="flex items-center gap-1 opacity-80" title={lead.assignedTo.email}>
+                          <User size={12} className="text-[var(--accent)]" />
+                          <span>{lead.assignedTo.name}</span>
+                        </div>
+                      ) : (
+                        <span className="opacity-40 font-mono">—</span>
+                      )}
                     </td>
 
                     {/* Sources */}
@@ -466,43 +508,24 @@ export default function AllLeadsPage() {
                       {lead.industry ?? "—"}
                     </td>
 
-                    {/* Tags */}
-                    <td>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {lead.tags.map(t => (
-                          <span key={t} className="tag" style={{ fontSize: 10 }}>
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-
-                    {/* Folder */}
-                    <td>
-                      {folder ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: 1, background: folder.color }} />
-                          <span style={{ fontSize: 11, color: "var(--ink-secondary)" }}>{folder.name}</span>
-                        </div>
-                      ) : "—"}
-                    </td>
-
                     {/* Saved */}
                     <td style={{ color: "var(--ink-muted)", fontSize: 11 }}>
-                      {lead.savedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {lead.savedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </td>
 
                     {/* Actions */}
                     <td>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button
-                          className="btn btn-ghost"
-                          style={{ padding: "4px 6px", fontSize: 11 }}
-                          title="Visit site"
-                          onClick={() => window.open(`https://${lead.domain}`, "_blank")}
-                        >
-                          <ArrowUpRight size={13} />
-                        </button>
+                        {lead.domain && (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: "4px 6px", fontSize: 11 }}
+                            title="Visit site"
+                            onClick={() => window.open(`https://${lead.domain}`, "_blank")}
+                          >
+                            <ArrowUpRight size={13} />
+                          </button>
+                        )}
                         <button
                           className="btn btn-ghost"
                           style={{ padding: "4px 6px", fontSize: 11 }}
@@ -547,7 +570,7 @@ export default function AllLeadsPage() {
         </span>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: "var(--ink-muted)" }} suppressHydrationWarning>
-          Last updated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+          Last updated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </span>
       </div>
 
@@ -601,16 +624,37 @@ export default function AllLeadsPage() {
                 </button>
               </div>
               <textarea
-                className="input"
                 value={noteText}
                 onChange={e => setNoteText(e.target.value)}
-                placeholder="Write a note about this lead..."
-                style={{ height: 120, resize: "vertical", fontFamily: "inherit", fontSize: 13 }}
-                autoFocus
+                placeholder="Type note details here..."
+                style={{
+                  width: "100%",
+                  height: 120,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r-md)",
+                  padding: 10,
+                  fontSize: 12,
+                  color: "var(--ink)",
+                  outline: "none",
+                  resize: "none",
+                }}
               />
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button className="btn btn-ghost" onClick={() => setEditingNote(null)}>Cancel</button>
-                <button className="btn btn-primary" onClick={() => saveNote(editingNote)}>Save note</button>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setEditingNote(null)}
+                  style={{ fontSize: 12 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => saveNote(editingNote)}
+                  style={{ fontSize: 12 }}
+                >
+                  Save Note
+                </button>
               </div>
             </motion.div>
           </>

@@ -14,6 +14,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
+          headers() {
+            if (typeof window !== "undefined") {
+              const simulatedUserId = localStorage.getItem("simulated-user-id");
+              if (simulatedUserId) {
+                return {
+                  "x-user-id": simulatedUserId,
+                };
+              }
+            }
+            return {};
+          },
         }),
       ],
     })

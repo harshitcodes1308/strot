@@ -12,12 +12,14 @@ import {
   Plus,
   ChartBar,
   Question,
+  Briefcase,
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
   { href: "/dashboard",        icon: Rows,            label: "All Leads"    },
   { href: "/dashboard/search", icon: MagnifyingGlass, label: "Discover"     },
   { href: "/dashboard/folders",icon: FolderSimple,    label: "Folders"      },
+  { href: "/dashboard/agency-profile", icon: Briefcase, label: "Agency Profile" },
   { href: "/dashboard/analytics", icon: ChartBar,     label: "Analytics"    },
 ];
 
@@ -183,10 +185,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             gap: 1,
           }}
         >
-          <button className="nav-item" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Settings" : undefined}>
+          <Link href="/dashboard/settings" className="nav-item" style={{ width: "100%", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Settings" : undefined}>
             <Gear size={15} />
             {!collapsed && <span>Settings</span>}
-          </button>
+          </Link>
           <button className="nav-item" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Help" : undefined}>
             <Question size={15} />
             {!collapsed && <span>Help</span>}
