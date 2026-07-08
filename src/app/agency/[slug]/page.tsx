@@ -110,7 +110,7 @@ export default function PublicAgencyProfilePage() {
               Core Tech Stack
             </h3>
             <div className="flex flex-wrap gap-2">
-              {agency.techStack.map((tech) => (
+              {agency.techStack.map((tech: string) => (
                 <span
                   key={tech}
                   className="bg-white/5 border border-white/10 text-white text-xs px-2.5 py-1 rounded font-mono capitalize"
@@ -127,7 +127,7 @@ export default function PublicAgencyProfilePage() {
               Industries Served
             </h3>
             <div className="flex flex-wrap gap-2">
-              {agency.industries.map((ind) => (
+              {agency.industries.map((ind: string) => (
                 <span
                   key={ind}
                   className="bg-[var(--primary-subtle)] border border-[var(--primary-glow)] text-[var(--accent)] text-xs px-2.5 py-1 rounded font-semibold capitalize"

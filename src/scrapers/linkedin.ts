@@ -121,14 +121,17 @@ export class LinkedInScraper implements LeadSourceScraper {
   }
 
   private _getMockData(params: ScraperParams, limit: number): RawLeadData[] {
-    return Array.from({ length: Math.min(2, limit) }).map((_, i) => ({
+    const industry = params.industry || "Software";
+    const loc = params.location || "San Francisco, CA";
+    
+    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
       sourceId: "linkedin",
       raw: {
         html: `
-          <div class="entity-result__title-text"><a href="#"><span>${params.query} Corp ${i}</span></a></div>
-          <div class="entity-result__primary-subtitle">Software · 100 employees</div>
-          <div class="entity-result__secondary-subtitle">San Francisco, CA</div>
-          <p class="entity-result__summary">We are building the future.</p>
+          <div class="entity-result__title-text"><a href="#"><span>${params.query} ${i + 1}</span></a></div>
+          <div class="entity-result__primary-subtitle">${industry} · ${10 + i * 40} employees</div>
+          <div class="entity-result__secondary-subtitle">${loc}</div>
+          <p class="entity-result__summary">We are building the future of ${industry}.</p>
         `
       }
     }));
@@ -147,14 +150,20 @@ export class LinkedInScraper implements LeadSourceScraper {
 
     const domain = name.replace(/\s+/g, "").toLowerCase() + ".com";
 
+    // Since search results don't provide followers, we generate a pseudo-random 
+    // number based on the name length for mock variation. In production we would
+    // either scrape the company page or use an enrichment API.
+    const pseudoRandomFollowers = (name.length * 123) % 5000 + 100;
+    const pseudoRandomPosts = name.length % 10;
+
     const linkedin: LinkedInData = {
-      followers: 500,
+      followers: pseudoRandomFollowers,
       employees: tagline.split("·")[1]?.trim() ?? "1-10",
       headquarters: location,
       industry: tagline.split("·")[0]?.trim() ?? "Internet",
       foundedYear: 2020,
       specialties: [],
-      recentPosts: 5,
+      recentPosts: pseudoRandomPosts,
     };
 
     return { name: name || "Unknown", domain, description: desc || tagline, location, industry: linkedin.industry, sourceData: { linkedin } };
@@ -166,10 +175,10 @@ export class LinkedInScraper implements LeadSourceScraper {
     const signals = computeOpportunitySignals({ linkedin: li });
 
     return {
-      id: `linkedin-${normalizeDomainKey(lead.domain)}`,
+      id: `linkedin-${normalizeDomainKey(lead.domain || "unknown")}`,
       name: lead.name,
-      domain: lead.domain,
-      description: lead.description,
+      domain: lead.domain ?? "",
+      description: lead.description ?? "LinkedIn profile",
       source: sourceId,
       sources: [sourceId],
       location: lead.location,

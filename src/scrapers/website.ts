@@ -90,20 +90,19 @@ export class WebsiteScraper implements LeadSourceScraper {
 
     /**
      * DISCOVERY MODE — find company websites via SerpAPI web search:
-     *
-     * if (serpKey) {
-     *   const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(params.query + " " + (params.location ?? ""))}&api_key=${serpKey}&num=${limit}`;
-     *   const res = await fetch(searchUrl);
-     *   const data = await res.json();
-     *
-     *   const urls: string[] = (data.organic_results ?? [])
-     *     .map((r: any) => r.link)
-     *     .filter((url: string) => !isBlacklisted(url));  // skip social media, directories
-     *
-     *   // Crawl each URL to extract tech stack + metadata
-     *   return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
-     * }
      */
+    if (serpKey) {
+      const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(params.query + " " + (params.location ?? ""))}&api_key=${serpKey}&num=${limit}`;
+      const res = await fetch(searchUrl);
+      const data = await res.json();
+    
+      const urls: string[] = (data.organic_results ?? [])
+        .map((r: any) => r.link)
+        .filter((url: string) => !isBlacklisted(url));  // skip social media, directories
+    
+      // Crawl each URL to extract tech stack + metadata
+      return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
+    }
 
     /**
      * ENRICHMENT MODE — given a known domain, crawl it:
@@ -202,50 +201,51 @@ export class WebsiteScraper implements LeadSourceScraper {
   }
 
   parse(raw: RawLeadData): NormalizedLead {
-    /**
-     * PRODUCTION:
-     * const { url, html, headers, psScore } = raw.raw as {
-     *   url: string;
-     *   html: string;
-     *   headers: Record<string, string>;
-     *   statusCode: number;
-     *   psScore: { performance: number; mobile: number } | null;
-     * };
-     *
-     * const techStack = detectTechStack(html);
-     * const cms = techStack.find(t => CMS_PATTERNS.includes(t));
-     * const hasAnalytics = techStack.some(t => ANALYTICS_PATTERNS.includes(t));
-     * const hasEcommerce = techStack.some(t => ECOMMERCE_PATTERNS.includes(t));
-     * const hasSSL = url.startsWith("https://");
-     * const lastModified = headers["last-modified"];
-     *
-     * const website: WebsiteData = {
-     *   techStack,
-     *   hasAnalytics,
-     *   hasCMS: !!cms,
-     *   hasEcommerce,
-     *   performanceScore: psScore?.performance,
-     *   mobileScore: psScore?.mobile,
-     *   hasSSL,
-     *   cms,
-     *   lastUpdated: lastModified,
-     * };
-     *
-     * const domain = new URL(url).hostname.replace(/^www\./, "");
-     * const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-     * const name = titleMatch?.[1]?.replace(/\s*[-|].*$/, "").trim() ?? domain;
-     * const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
-     * const description = descMatch?.[1]?.trim() ?? "";
-     *
-     * return { name, domain, description, sourceData: { website } };
-     */
-
-    return {
-      name: "",
-      domain: String(raw.raw.url ?? "").replace(/^https?:\/\/(www\.)?/, "").split("/")[0],
-      description: "",
-      sourceData: { website: {} },
+    // PRODUCTION:
+    const { url, html, headers, psScore, title } = raw.raw as {
+      url: string;
+      html?: string;
+      headers?: Record<string, string>;
+      statusCode?: number;
+      psScore?: { performance: number; mobile: number } | null;
+      title?: string;
     };
+    
+    if (!html) {
+      return {
+        name: title ?? "",
+        domain: String(url ?? "").replace(/^https?:\/\/(www\.)?/, "").split("/")[0],
+        description: "",
+        sourceData: { website: {} },
+      };
+    }
+
+    const techStack = detectTechStack(html);
+    const cms = techStack.find(t => CMS_PATTERNS.includes(t));
+    const hasAnalytics = techStack.some(t => ANALYTICS_PATTERNS.includes(t));
+    const hasEcommerce = techStack.some(t => ECOMMERCE_PATTERNS.includes(t));
+    const hasSSL = url.startsWith("https://");
+    const lastModified = headers?.["last-modified"];
+
+    const website: WebsiteData = {
+      techStack,
+      hasAnalytics,
+      hasCMS: !!cms,
+      hasEcommerce,
+      performanceScore: psScore?.performance,
+      mobileScore: psScore?.mobile,
+      hasSSL,
+      cms,
+      lastUpdated: lastModified,
+    };
+
+    const domain = new URL(url).hostname.replace(/^www\./, "");
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const name = titleMatch?.[1]?.replace(/\s*[-|].*$/, "").trim() ?? title ?? domain;
+    const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
+    const description = descMatch?.[1]?.trim() ?? "";
+
+    return { name, domain, description, sourceData: { website } };
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
@@ -253,10 +253,10 @@ export class WebsiteScraper implements LeadSourceScraper {
     const signals = computeOpportunitySignals({ website: w });
 
     return {
-      id: `website-${lead.domain.replace(/\./g, "-")}`,
+      id: `website-${(lead.domain || "unknown").replace(/\./g, "-")}`,
       name: lead.name,
-      domain: lead.domain,
-      description: lead.description,
+      domain: lead.domain ?? "",
+      description: lead.description ?? "Website profile",
       source: sourceId,
       sources: [sourceId],
       location: lead.location,

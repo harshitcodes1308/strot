@@ -16,12 +16,27 @@ export const leadsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       // In a production environment this would be queued or async.
       // For MVP we just run it inline.
-      const results = await orchestrator.search({
-        query: input.query,
-        location: input.location,
-        industry: input.industry,
-      }, input.sources);
-      return results;
+      // Add a timeout of 15 seconds to prevent hanging
+      const timeoutPromise = new Promise<SearchResult[]>((_, reject) => 
+        setTimeout(() => reject(new Error("Search timed out after 15 seconds")), 15000)
+      );
+
+      try {
+        const results = await Promise.race([
+          orchestrator.search({
+            query: input.query,
+            location: input.location,
+            industry: input.industry,
+          }, input.sources),
+          timeoutPromise
+        ]);
+        
+        // Limit results to 20 for MVP to keep UI responsive
+        return results.slice(0, 20);
+      } catch (error) {
+        console.error("Scraper orchestrator failed:", error);
+        throw new Error("Failed to complete search. Please try again or with fewer sources.");
+      }
     }),
 
   listSaved: protectedProcedure.query(async ({ ctx }) => {

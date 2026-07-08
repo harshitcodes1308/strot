@@ -1,0 +1,21 @@
+/**
+ * Facebook Scraper — Phase 5 STUB
+ * STATUS: manual/beta — Meta blocks all automated access. ToS violation risk.
+ * WORKAROUND: Use the Strot Chrome Extension while browsing Facebook Business pages.
+ */
+import { LeadSourceScraper, BrowserConfig } from "./base";
+import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
+
+export class FacebookScraper implements LeadSourceScraper {
+  readonly id: LeadSource = "facebook";
+  readonly label = "Facebook";
+  readonly selectors = {};
+  async fetch(_p: ScraperParams, _c?: Partial<BrowserConfig>): Promise<RawLeadData[]> {
+    console.info("[FacebookScraper] manual/beta — Meta blocks all automated access. Use Chrome Extension.");
+    return [];
+  }
+  parse(_r: RawLeadData): NormalizedLead { return { name: "Unknown", sourceData: {} }; }
+  normalize(_l: NormalizedLead, s: LeadSource): SearchResult {
+    return { id: "", name: "", domain: "", description: "", source: s, sources: [s], opportunitySignals: [], isSaved: false };
+  }
+}

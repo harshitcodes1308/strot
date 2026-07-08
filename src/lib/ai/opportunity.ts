@@ -19,12 +19,23 @@ Analyze the lead data and the generated postmortem.
 Determine an Opportunity Score (0-100) based on how likely they are to need web design, SEO, or marketing services.
 Look for buying signals like: low Google ratings, missing or outdated website, lack of social media presence, or signs of recent growth (hiring, new locations) that outpace their brand presence.`;
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
-    schema: opportunityScoreSchema,
-    system: systemPrompt,
-    prompt: `Lead Data:\n${JSON.stringify(lead, null, 2)}\n\nPostmortem:\n${JSON.stringify(postmortem, null, 2)}`,
-  });
-
-  return object;
+  try {
+    const { object } = await generateObject({
+      model: openai("gpt-4o-mini"),
+      schema: opportunityScoreSchema,
+      system: systemPrompt,
+      prompt: `Lead Data:\n${JSON.stringify(lead, null, 2)}\n\nPostmortem:\n${JSON.stringify(postmortem, null, 2)}`,
+    });
+    return object;
+  } catch (error) {
+    console.error("AI Opportunity Score Error:", error);
+    // Derive a simple fallback score from available postmortem data
+    const signals = postmortem.redFlags.length > 0 ? postmortem.redFlags.slice(0, 2) : ["manual_review_needed"];
+    return {
+      score: 60,
+      buyingSignals: signals,
+      suggestedServices: ["Web Redesign & Development", "SEO Audit & Optimization"],
+      reasoning: "Fallback score generated — AI analysis could not complete. Manual review recommended.",
+    };
+  }
 }

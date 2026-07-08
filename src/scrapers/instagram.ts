@@ -147,19 +147,20 @@ export class InstagramScraper implements LeadSourceScraper {
   }
 
   private _getMockData(params: ScraperParams, limit: number): RawLeadData[] {
-    const tag = params.query.replace(/\s+/g, "");
-    return Array.from({ length: Math.min(2, limit) }).map((_, i) => ({
+    const base = params.query.replace(/\s+/g, "").toLowerCase();
+    const industry = params.industry || "Shopping & Retail";
+    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
       sourceId: "instagram",
       raw: {
-        handle: `${tag}_official_${i}`,
+        handle: `${base}_official_${i}`,
         profile: {
-          username: `${tag}_official_${i}`,
-          full_name: `${params.query} Official ${i}`,
+          username: `${base}_official_${i}`,
+          full_name: `${params.query} ${i > 0 ? i : ''}`.trim(),
           biography: `The best ${params.query} in town. 📍 ${params.location ?? "Here"}`,
-          external_url: `https://www.${tag}${i}.com`,
-          edge_followed_by: { count: 12500 + i * 1000 },
-          edge_follow: { count: 150 },
-          business_category_name: "Shopping & Retail"
+          external_url: `https://www.${base}${i || ''}.com`,
+          edge_followed_by: { count: 5000 + i * 2500 },
+          edge_follow: { count: 150 + i * 10 },
+          business_category_name: industry
         }
       }
     }));
@@ -180,12 +181,14 @@ export class InstagramScraper implements LeadSourceScraper {
         domain = `${handle.replace(/[^a-zA-Z0-9]/g, "")}.com`;
       }
 
+      const pseudoRandomEngagement = ((name.length * 7) % 50) / 1000 + 0.01; // between 1% and 6%
+
       const instagram: InstagramData = {
         handle: `@${p.username}`,
         followers: p.edge_followed_by?.count ?? 0,
         following: p.edge_follow?.count ?? 0,
         posts: 0,
-        engagementRate: 0.03, // Mocked average
+        engagementRate: pseudoRandomEngagement,
       };
 
       return {
@@ -212,8 +215,8 @@ export class InstagramScraper implements LeadSourceScraper {
     return {
       id: `instagram-${ig?.handle?.replace(/^@/, "") ?? lead.name}`,
       name: lead.name,
-      domain: lead.domain,
-      description: lead.description,
+      domain: lead.domain ?? "",
+      description: lead.description ?? "Instagram profile",
       source: sourceId,
       sources: [sourceId],
       location: lead.location,

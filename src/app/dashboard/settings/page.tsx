@@ -137,7 +137,7 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {members?.map((m) => (
+                {members?.map((m: any) => (
                   <tr key={m.id} className="group">
                     <td className="py-3">
                       <div className="font-medium text-white">{m.user.name}</div>
@@ -241,7 +241,7 @@ export default function SettingsPage() {
           {logs?.length === 0 ? (
             <p className="text-xs opacity-50 py-4">No logged activities in this workspace yet.</p>
           ) : (
-            logs?.map((l) => (
+            logs?.map((l: any) => (
               <div key={l.id} className="flex justify-between items-start text-xs border-b border-white/5 pb-2 last:border-b-0">
                 <div>
                   <span className="font-semibold text-white mr-1.5">{l.user.name}</span>

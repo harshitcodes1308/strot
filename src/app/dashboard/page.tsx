@@ -81,16 +81,36 @@ export default function AllLeadsPage() {
   const [noteText, setNoteText] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Map db leads with match scores
+  // Map db leads with match scores and flattened source data for CSV
   const leads = useMemo(() => {
     if (!dbLeads) return [];
-    return dbLeads.map((l) => {
-      const match = matches?.find((m) => m.leadId === l.id);
+    return dbLeads.map((l: any) => {
+      const match = matches?.find((m: any) => m.leadId === l.id);
+      
+      // Flatten sourceData (which might be an array of objects in Prisma)
+      let google, linkedin, instagram, website;
+      if (Array.isArray(l.sourceData)) {
+        google = l.sourceData.find((d: any) => d.google)?.google;
+        linkedin = l.sourceData.find((d: any) => d.linkedin)?.linkedin;
+        instagram = l.sourceData.find((d: any) => d.instagram)?.instagram;
+        website = l.sourceData.find((d: any) => d.website)?.website;
+      } else if (l.sourceData) {
+        google = l.sourceData.google;
+        linkedin = l.sourceData.linkedin;
+        instagram = l.sourceData.instagram;
+        website = l.sourceData.website;
+      }
+
       return {
         ...l,
         savedAt: new Date(l.createdAt),
         matchScore: match?.score ?? 0,
         summary: match?.summary || "",
+        tags: [], // Mock fallback
+        google,
+        linkedin,
+        instagram,
+        website,
       };
     });
   }, [dbLeads, matches]);
@@ -99,16 +119,16 @@ export default function AllLeadsPage() {
     let res = leads;
     if (search) {
       const q = search.toLowerCase();
-      res = res.filter(l =>
+      res = res.filter((l: any) =>
         l.name.toLowerCase().includes(q) ||
         (l.domain && l.domain.toLowerCase().includes(q)) ||
         (l.industry && l.industry.toLowerCase().includes(q))
       );
     }
-    if (selectedStatus) res = res.filter(l => l.status === selectedStatus);
-    if (selectedSource) res = res.filter(l => l.sources.includes(selectedSource));
+    if (selectedStatus) res = res.filter((l: any) => l.status === selectedStatus);
+    if (selectedSource) res = res.filter((l: any) => l.sources.includes(selectedSource));
 
-    return [...res].sort((a, b) => {
+    return [...res].sort((a: any, b: any) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "status") return a.status.localeCompare(b.status);
       if (sortBy === "matchScore") return b.matchScore - a.matchScore;
@@ -135,7 +155,7 @@ export default function AllLeadsPage() {
 
   const handleExport = useCallback(() => {
     const toExport = selectedIds.size > 0
-      ? leads.filter(l => selectedIds.has(l.id))
+      ? leads.filter((l: any) => selectedIds.has(l.id))
       : filtered;
     downloadCSV(toExport as any);
   }, [leads, filtered, selectedIds]);

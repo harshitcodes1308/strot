@@ -118,7 +118,7 @@ export default function LeadDetailPage() {
             className="bg-transparent text-white border-0 outline-none cursor-pointer text-xs font-semibold"
           >
             <option value="" className="bg-[var(--surface-raised)]">Unassigned</option>
-            {members?.map((m) => (
+            {members?.map((m: any) => (
               <option key={m.userId} value={m.userId} className="bg-[var(--surface-raised)]">
                 {m.user.name} ({m.role})
               </option>
@@ -330,7 +330,7 @@ export default function LeadDetailPage() {
             {comments?.length === 0 ? (
               <p className="text-xs opacity-50 py-4 text-center">No comments posted yet. Start the conversation!</p>
             ) : (
-              comments?.map((c) => (
+              comments?.map((c: any) => (
                 <div key={c.id} className="pt-4 first:pt-0">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-white">{c.user.name}</span>

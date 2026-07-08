@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   MagnifyingGlass,
@@ -16,8 +16,8 @@ import {
   CircleNotch,
   Warning,
 } from "@phosphor-icons/react";
-import { simulateSearch } from "@/lib/mock-data";
 import { SearchResult, LeadSource } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -37,10 +37,41 @@ const INDUSTRIES = [
   "Media & Publishing", "Hospitality", "Construction", "Retail",
 ];
 
+const KEYWORD_INDUSTRY_MAP: Record<string, string> = {
+  "restaurant": "Food & Beverage",
+  "cafe": "Food & Beverage",
+  "coffee": "Food & Beverage",  
+  "bar": "Food & Beverage",
+  "architect": "Architecture",
+  "architecture": "Architecture",
+  "interior": "Interior Design",
+  "fashion": "Fashion & Apparel",
+  "clothing": "Fashion & Apparel",
+  "agency": "Marketing & Advertising",
+  "marketing": "Marketing & Advertising",
+  "design": "Design Services",
+  "photo": "Photography",
+  "real estate": "Real Estate",
+  "lawyer": "Legal Services",
+  "doctor": "Healthcare",
+  "gym": "Fitness & Wellness",
+  "fitness": "Fitness & Wellness",
+  "school": "Education",
+  "saas": "Software / SaaS",
+  "software": "Software / SaaS",
+  "hotel": "Hospitality",
+  "construction": "Construction",
+  "retail": "Retail",
+  "shop": "Retail",
+  "ecommerce": "E-commerce",
+  "e-commerce": "E-commerce",
+};
+
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [industry, setIndustry] = useState("");
+  const [autoIndustry, setAutoIndustry] = useState(false);
   const [activeSources, setActiveSources] = useState<LeadSource[]>(
     ["linkedin", "instagram", "google_maps", "website"]
   );
@@ -49,6 +80,36 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const searchMutation = trpc.leads.search.useMutation();
+  const saveMutation = trpc.leads.save.useMutation();
+
+  // Industry Auto-fill
+  useEffect(() => {
+    if (!query.trim()) {
+      if (autoIndustry) {
+        setIndustry("");
+        setAutoIndustry(false);
+      }
+      return;
+    }
+    const qLower = query.toLowerCase();
+    let matchedIndustry = "";
+    for (const [kw, ind] of Object.entries(KEYWORD_INDUSTRY_MAP)) {
+      if (qLower.includes(kw)) {
+        matchedIndustry = ind;
+        break;
+      }
+    }
+    
+    if (matchedIndustry && (industry === "" || autoIndustry)) {
+      setIndustry(matchedIndustry);
+      setAutoIndustry(true);
+    } else if (!matchedIndustry && autoIndustry) {
+      setIndustry("");
+      setAutoIndustry(false);
+    }
+  }, [query]);
 
   const toggleSource = useCallback((src: LeadSource) => {
     setActiveSources(prev =>
@@ -60,25 +121,62 @@ export default function SearchPage() {
     if (!query.trim()) return;
     setLoading(true);
     setSearched(false);
-    // Simulate scraper latency (real: orchestrator.search() call via tRPC)
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
-    const res = simulateSearch(query, location, industry, activeSources);
-    setResults(res);
-    setLoading(false);
-    setSearched(true);
-  }, [query, location, industry, activeSources]);
+    try {
+      const res = await searchMutation.mutateAsync({
+        query,
+        location: location || undefined,
+        industry: industry || undefined,
+        sources: activeSources as ("linkedin" | "instagram" | "google_maps" | "website")[],
+      });
+      setResults(res as SearchResult[]);
+    } catch (e) {
+      console.error("Search failed:", e);
+      // Fallback or error display logic can go here
+      setResults([]);
+    } finally {
+      setLoading(false);
+      setSearched(true);
+    }
+  }, [query, location, industry, activeSources, searchMutation]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") runSearch();
   }, [runSearch]);
 
-  const toggleSave = useCallback((id: string) => {
-    setSavedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const handleIndustryChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setIndustry(e.target.value);
+    setAutoIndustry(false); // Manual override clears auto flag
   }, []);
+
+  const toggleSave = useCallback(async (result: SearchResult) => {
+    if (savedIds.has(result.id) || result.isSaved) return; // Already saved
+
+    try {
+      await saveMutation.mutateAsync({
+        id: result.id,
+        name: result.name,
+        domain: result.domain,
+        description: result.description,
+        location: result.location,
+        industry: result.industry,
+        sources: result.sources,
+        opportunitySignals: result.opportunitySignals ?? [],
+        linkedin: result.linkedin,
+        instagram: result.instagram,
+        google: result.google,
+        website: result.website,
+      });
+
+      setSavedIds(prev => {
+        const next = new Set(prev);
+        next.add(result.id);
+        return next;
+      });
+    } catch (e) {
+      console.error("Failed to save lead:", e);
+      alert("Failed to save lead. Check console for details.");
+    }
+  }, [savedIds, saveMutation]);
 
   const savedCount = savedIds.size;
   const enabledCount = activeSources.length;
@@ -171,12 +269,12 @@ export default function SearchPage() {
 
           <select
             className="input"
-            style={{ width: "auto", fontSize: 12, cursor: "pointer" }}
+            style={{ width: "auto", fontSize: 12, cursor: "pointer", borderColor: autoIndustry ? "var(--primary-subtle)" : undefined }}
             value={industry}
-            onChange={e => setIndustry(e.target.value)}
+            onChange={handleIndustryChange}
           >
             <option value="">All industries</option>
-            {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+            {INDUSTRIES.map(i => <option key={i} value={i}>{i}{autoIndustry && industry === i ? " ✨" : ""}</option>)}
           </select>
 
           {(location || industry || activeSources.length < 4) && (
@@ -290,7 +388,7 @@ export default function SearchPage() {
                   key={result.id}
                   result={result}
                   isSaved={savedIds.has(result.id) || result.isSaved}
-                  onSave={() => toggleSave(result.id)}
+                  onSave={() => toggleSave(result)}
                   index={i}
                 />
               ))}

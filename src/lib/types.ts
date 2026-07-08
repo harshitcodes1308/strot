@@ -2,12 +2,30 @@
 // Sources: LinkedIn, Instagram, Google Maps, Company Websites (scraper-based)
 // GitHub, Product Hunt, etc. → Phase 5 expansion
 
-export type LeadSource = "linkedin" | "instagram" | "google_maps" | "website";
+export type LeadSource =
+  // Phase 1 sources (live scrapers)
+  | "linkedin"
+  | "instagram"
+  | "google_maps"
+  | "website"
+  // Phase 5 sources (live where API available, documented stubs otherwise)
+  | "github"
+  | "product_hunt"
+  | "reddit"
+  | "job_boards"
+  | "crunchbase"
+  | "clutch"
+  | "behance"
+  | "dribbble"
+  | "justdial"
+  | "indiamart"
+  | "facebook"
+  | "twitter_x";
 
-// Phase 5 sources (not active in Phase 1 UI)
-export type Phase5Source = "github" | "producthunt" | "facebook" | "twitter" | "reddit" | "clutch" | "goodfirms" | "crunchbase" | "behance" | "dribbble" | "justdial" | "indiamart" | "jobboards";
+// Phase 5 sources (not active in Phase 1 UI — kept for backward compat)
+export type Phase5Source = "github" | "product_hunt" | "facebook" | "twitter_x" | "reddit" | "clutch" | "goodfirms" | "crunchbase" | "behance" | "dribbble" | "justdial" | "indiamart" | "job_boards";
 
-export type AnySource = LeadSource | Phase5Source;
+export type AnySource = LeadSource;
 
 export type LeadStatus = "new" | "active" | "warm" | "cold" | "closed";
 
@@ -141,10 +159,13 @@ export interface RawLeadData {
 
 export interface NormalizedLead {
   name: string;
-  domain: string;
-  description: string;
+  domain?: string;
+  description?: string;
   location?: string;
   industry?: string;
   employees?: string;
-  sourceData: Partial<Pick<Lead, "linkedin" | "instagram" | "google" | "website">>;
+  sources?: string[];
+  opportunitySignals?: string[];
+  // Phase 1 sources use typed keys; Phase 5 sources add their own keys
+  sourceData: Partial<Pick<Lead, "linkedin" | "instagram" | "google" | "website">> & Record<string, unknown>;
 }

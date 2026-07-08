@@ -15,6 +15,9 @@ import {
   Briefcase,
 } from "@phosphor-icons/react";
 
+import { trpc } from "@/lib/trpc";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 const NAV_ITEMS = [
   { href: "/dashboard",        icon: Rows,            label: "All Leads"    },
   { href: "/dashboard/search", icon: MagnifyingGlass, label: "Discover"     },
@@ -23,16 +26,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/analytics", icon: ChartBar,     label: "Analytics"    },
 ];
 
-const FOLDERS = [
-  { id: "f1", name: "SaaS Prospects",    color: "var(--primary)",  count: 12 },
-  { id: "f2", name: "Agency Targets",    color: "var(--accent)",   count: 8  },
-  { id: "f3", name: "OSS Opportunities", color: "var(--warning)",  count: 5  },
-  { id: "f4", name: "Local Businesses",  color: "oklch(0.65 0.140 38)", count: 19 },
-];
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { data: folders } = trpc.folders.list.useQuery();
 
   return (
     <div style={{ display: "flex", minHeight: "100dvh", background: "var(--bg)" }}>
@@ -144,7 +141,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Folders
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {FOLDERS.map(f => (
+                {folders?.map(f => (
                   <Link
                     key={f.id}
                     href={`/dashboard/folders/${f.id}`}
@@ -157,7 +154,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           width: 7,
                           height: 7,
                           borderRadius: 2,
-                          background: f.color,
+                          background: f.color || "var(--primary)",
                           flexShrink: 0,
                         }}
                       />
@@ -166,7 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span
                       style={{ fontSize: 10, color: "var(--ink-muted)", background: "var(--surface-raised)", padding: "1px 5px", borderRadius: "var(--r-pill)", border: "1px solid var(--border-subtle)" }}
                     >
-                      {f.count}
+                      {f._count.leads}
                     </span>
                   </Link>
                 ))}
@@ -202,7 +199,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Main ──────────────────────────────────────────────────────── */}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
-        {children}
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </main>
     </div>
   );

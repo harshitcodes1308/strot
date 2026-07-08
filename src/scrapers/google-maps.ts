@@ -178,18 +178,22 @@ export class GoogleMapsScraper implements LeadSourceScraper {
   }
 
   private _getMockData(params: ScraperParams, limit: number): RawLeadData[] {
-    return Array.from({ length: Math.min(2, limit) }).map((_, i) => ({
+    const category = params.industry || "Local Business";
+    const baseDomain = params.query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    
+    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
       sourceId: "google_maps",
       raw: {
         html: `
-          <a class="hfpxzc" href="https://maps.google.com/?q=${params.query}"></a>
-          <div class="qBF1Pd fontHeadlineSmall">${params.query} Shop ${i}</div>
-          <div class="W4Efsd"><span>4.${5-i}</span><span>(${100 + i*10})</span></div>
-          <div class="W4Efsd"><span>Coffee Shop</span></div>
-          <div class="W4Efsd"><span>123 Main St, ${params.location ?? "City"}</span></div>
+          <a class="hfpxzc" href="https://maps.google.com/?q=${encodeURIComponent(params.query)}"></a>
+          <div class="qBF1Pd fontHeadlineSmall">${params.query} ${i + 1}</div>
+          <div class="W4Efsd"><span>4.${8 - i}</span><span>(${150 + i*45})</span></div>
+          <div class="W4Efsd"><span>${category}</span></div>
+          <div class="W4Efsd"><span>${100+i} Main St, ${params.location ?? "City"}</span></div>
           <div class="W4Efsd"><span>Open 24/7</span></div>
           <div class="W4Efsd"><span>+1 555-010${i}</span></div>
-          <a href="https://www.shop${i}.com">Website</a>
+          <a data-item-id="authority" href="https://www.${baseDomain || "business"}${i + 1}.com">Website</a>
+          <a data-item-id="phone" href="tel:+1555010${i}">Phone</a>
         `
       }
     }));
@@ -250,10 +254,10 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     const signals = computeOpportunitySignals({ google: g });
 
     return {
-      id: `google-${g?.placeId ?? lead.domain.replace(/\./g, "-")}`,
+      id: `google-${g?.placeId ?? (lead.domain || "unknown").replace(/\./g, "-")}`,
       name: lead.name,
-      domain: lead.domain,
-      description: lead.description,
+      domain: lead.domain ?? "",
+      description: lead.description ?? "Google Maps listing",
       source: sourceId,
       sources: [sourceId],
       location: lead.location,

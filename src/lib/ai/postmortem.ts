@@ -22,12 +22,26 @@ export async function generateCompanyPostmortem(lead: NormalizedLead): Promise<P
 Your job is to analyze the provided raw data about a business (scraped from Google Maps, LinkedIn, Instagram, and their website) and generate a concise, highly accurate 'Company Postmortem' report.
 If data is missing, make reasonable educated inferences based on the industry and location, but never hallucinate hard facts like specific names if they aren't provided.`;
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
-    schema: postmortemSchema,
-    system: systemPrompt,
-    prompt: `Analyze the following lead data:\n\n${JSON.stringify(lead, null, 2)}`,
-  });
-
-  return object;
+  try {
+    const { object } = await generateObject({
+      model: openai("gpt-4o-mini"),
+      schema: postmortemSchema,
+      system: systemPrompt,
+      prompt: `Analyze the following lead data:\n\n${JSON.stringify(lead, null, 2)}`,
+    });
+    return object;
+  } catch (error) {
+    console.error("AI Postmortem Error:", error);
+    return {
+      overview: `${lead.name} is a ${lead.industry ?? "business"} based in ${lead.location ?? "an unknown location"}. ${lead.description ?? "No additional description available."}`,
+      founders: [],
+      seo: {
+        strengths: ["Domain is registered"],
+        weaknesses: ["AI research unavailable — manual review recommended"],
+      },
+      competitors: [],
+      recentActivity: "Unable to retrieve recent activity — AI analysis failed.",
+      redFlags: ["AI analysis could not be completed; manual verification needed"],
+    };
+  }
 }
