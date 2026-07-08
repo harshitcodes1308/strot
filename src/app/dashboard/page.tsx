@@ -66,7 +66,6 @@ function SourcePills({ sources }: { sources: string[] }) {
 
 export default function AllLeadsPage() {
   const { data: dbLeads, isLoading, refetch } = trpc.leads.listSaved.useQuery();
-  const { data: matches } = trpc.agency.getMatchmaking.useQuery();
 
   const updateStatusMutation = trpc.leads.updateStatus.useMutation({ onSuccess: () => refetch() });
   const deleteMutation = trpc.leads.delete.useMutation({ onSuccess: () => refetch() });
@@ -85,7 +84,6 @@ export default function AllLeadsPage() {
   const leads = useMemo(() => {
     if (!dbLeads) return [];
     return dbLeads.map((l: any) => {
-      const match = matches?.find((m: any) => m.leadId === l.id);
       
       // Flatten sourceData (which might be an array of objects in Prisma)
       let google, linkedin, instagram, website;
@@ -104,8 +102,8 @@ export default function AllLeadsPage() {
       return {
         ...l,
         savedAt: new Date(l.createdAt),
-        matchScore: match?.score ?? 0,
-        summary: match?.summary || "",
+        matchScore: l.matchScore ?? 0,
+        summary: l.description || "",
         tags: [], // Mock fallback
         google,
         linkedin,
@@ -113,7 +111,7 @@ export default function AllLeadsPage() {
         website,
       };
     });
-  }, [dbLeads, matches]);
+  }, [dbLeads]);
 
   const filtered = useMemo(() => {
     let res = leads;
@@ -480,8 +478,8 @@ export default function AllLeadsPage() {
                     <td>
                       <div className="flex items-center gap-1.5 font-display font-bold text-sm">
                         <Sparkle size={12} className="text-[var(--accent)]" />
-                        <span className={lead.matchScore >= 80 ? "text-[var(--success)]" : "text-white"}>
-                          {lead.matchScore}%
+                        <span className={lead.matchScore >= 80 ? "text-[var(--success)]" : (lead.matchScore === 0 ? "opacity-50 text-xs font-normal" : "text-white")}>
+                          {lead.matchScore > 0 ? `${lead.matchScore}%` : "Not Run"}
                         </span>
                       </div>
                     </td>

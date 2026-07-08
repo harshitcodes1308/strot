@@ -11,6 +11,8 @@ export default function SettingsPage() {
 
   const [activeUserId, setActiveUserId] = useState(() => {
     if (typeof window !== "undefined") {
+      const match = document.cookie.match(new RegExp('(^| )simulated-user-id=([^;]+)'));
+      if (match) return match[2];
       return localStorage.getItem("simulated-user-id") || "test_user_123";
     }
     return "test_user_123";
@@ -55,6 +57,7 @@ export default function SettingsPage() {
   });
 
   const handleUserSwitch = (userId: string) => {
+    document.cookie = `simulated-user-id=${userId}; path=/`;
     localStorage.setItem("simulated-user-id", userId);
     setActiveUserId(userId);
     window.location.reload();

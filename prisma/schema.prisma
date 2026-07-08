@@ -73,6 +73,7 @@ model Lead {
   postmortem         Json?
   audit              Json?
   opportunityScore   Int?
+  matchScore         Int?
   
   // Dashboard state
   status             String   @default("new") // new, active, warm, cold, closed

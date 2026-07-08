@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   CheckCircle,
   Clock,
-  Coins
+  Coins,
+  FolderSimple
 } from "@phosphor-icons/react";
 import Link from "next/link";
 
@@ -23,12 +24,13 @@ export default function LeadDetailPage() {
 
   const { data: lead, isLoading: leadLoading, refetch: refetchLead } = trpc.leads.get.useQuery({ id });
   const { data: members } = trpc.workspace.getMembers.useQuery();
+  const { data: folders } = trpc.folders.list.useQuery();
   const { data: comments, refetch: refetchComments } = trpc.leads.getComments.useQuery({ leadId: id });
   const { data: recommendations, isLoading: recsLoading } = trpc.leads.getServiceRecommendations.useQuery({ id });
-  const { data: matches } = trpc.agency.getMatchmaking.useQuery();
+  const { data: match, refetch: refetchMatch } = trpc.agency.getMatchmaking.useQuery({ leadId: id });
   const { data: proposal, refetch: refetchProposal } = trpc.agency.getProposal.useQuery({ leadId: id });
 
-  const leadMatch = matches?.find(m => m.leadId === id);
+  const leadMatch = match;
 
   const [activeTab, setActiveTab] = useState<"postmortem" | "outreach" | "meeting" | "match" | "comments" | "proposal">("outreach");
   const [draftFormat, setDraftFormat] = useState<OutreachFormat>("email");
@@ -72,6 +74,18 @@ export default function LeadDetailPage() {
     }
   });
 
+  const assignFolderMutation = trpc.folders.assignLead.useMutation({
+    onSuccess: () => {
+      refetchLead();
+    }
+  });
+
+  const generateResearchMutation = trpc.research.generateInsights.useMutation({
+    onSuccess: () => {
+      refetchLead();
+    }
+  });
+
   const commentMutation = trpc.leads.addComment.useMutation({
     onSuccess: () => {
       refetchComments();
@@ -108,7 +122,26 @@ export default function LeadDetailPage() {
           <p className="text-sm opacity-70 mt-1">{lead.domain || "No domain"} • {lead.industry || "No industry"}</p>
         </div>
 
-        {/* Lead Assignment Selector */}
+        <div className="flex items-center gap-4">
+          {/* Folder Assignment Selector */}
+          <div className="flex items-center gap-2 bg-[var(--surface)] border border-white/10 rounded-lg p-2 text-xs">
+            <FolderSimple size={14} className="text-white/60" />
+            <span className="opacity-70">Folder:</span>
+            <select
+              value={lead.folderId || ""}
+              onChange={(e) => assignFolderMutation.mutate({ leadId: id, folderId: e.target.value || null })}
+              className="bg-transparent text-white border-0 outline-none cursor-pointer text-xs font-semibold max-w-[120px] truncate"
+            >
+              <option value="" className="bg-[var(--surface-raised)]">No Folder</option>
+              {folders?.map((f: any) => (
+                <option key={f.id} value={f.id} className="bg-[var(--surface-raised)]">
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Lead Assignment Selector */}
         <div className="flex items-center gap-2 bg-[var(--surface)] border border-white/10 rounded-lg p-2 text-xs">
           <UserPlus size={14} className="text-white/60" />
           <span className="opacity-70">Assignee:</span>
@@ -490,10 +523,23 @@ export default function LeadDetailPage() {
 
       {/* Technical Postmortem Tab */}
       {activeTab === "postmortem" && (
-        <div className="bg-[var(--surface)] p-6 rounded-xl border border-white/10 overflow-auto">
-          <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap leading-relaxed">
-            {JSON.stringify(lead.postmortem || { message: "No postmortem data. Run AI Research in dashboard." }, null, 2)}
-          </pre>
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => generateResearchMutation.mutate({ leadId: id })}
+              disabled={generateResearchMutation.isPending}
+              className="bg-[var(--primary)] text-white px-4 py-2 rounded-md font-medium text-xs hover:bg-[var(--primary-hover)] disabled:opacity-50 flex items-center gap-2"
+            >
+              <Sparkle size={14} />
+              {generateResearchMutation.isPending ? "Generating Research..." : "Run AI Research & Audit"}
+            </button>
+          </div>
+          
+          <div className="bg-[var(--surface)] p-6 rounded-xl border border-white/10 overflow-auto">
+            <pre className="text-[10px] font-mono text-white/70 whitespace-pre-wrap leading-relaxed">
+              {JSON.stringify(lead.postmortem || { message: "No postmortem data. Run AI Research to generate it." }, null, 2)}
+            </pre>
+          </div>
         </div>
       )}
     </div>

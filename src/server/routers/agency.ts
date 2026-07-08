@@ -246,35 +246,44 @@ export const agencyRouter = createTRPCRouter({
       return proposal;
     }),
 
-  getMatchmaking: protectedProcedure.query(async ({ ctx }) => {
-    // 1. Fetch agency profile
-    let profile = await ctx.db.agencyProfile.findUnique({
-      where: { workspaceId: ctx.workspaceId },
-    });
-    if (!profile) {
-      profile = await ctx.db.agencyProfile.create({
-        data: {
-          workspaceId: ctx.workspaceId,
-          slug: `agency-${ctx.workspaceId.substring(0, 8)}`,
-          name: "My Digital Agency",
-          tagline: "High-performance software and design solutions.",
-          description: "We craft top-tier digital experiences.",
-          services: defaultServices,
-          industries: ["saas", "e-commerce", "local-business"],
-          techStack: ["nextjs", "react"],
-        },
+  getMatchmaking: protectedProcedure
+    .input(z.object({ leadId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // 1. Fetch agency profile
+      let profile = await ctx.db.agencyProfile.findUnique({
+        where: { workspaceId: ctx.workspaceId },
       });
-    }
+      if (!profile) {
+        profile = await ctx.db.agencyProfile.create({
+          data: {
+            workspaceId: ctx.workspaceId,
+            slug: `agency-${ctx.workspaceId.substring(0, 8)}`,
+            name: "My Digital Agency",
+            tagline: "High-performance software and design solutions.",
+            description: "We craft top-tier digital experiences.",
+            services: defaultServices,
+            industries: ["saas", "e-commerce", "local-business"],
+            techStack: ["nextjs", "react"],
+          },
+        });
+      }
 
-    // 2. Fetch all saved leads
-    const leads = await ctx.db.lead.findMany({
-      where: { workspaceId: ctx.workspaceId },
-    });
+      // 2. Fetch the specific lead
+      const lead = await ctx.db.lead.findUnique({
+        where: { id: input.leadId, workspaceId: ctx.workspaceId },
+      });
+      if (!lead) throw new Error("Lead not found");
 
-    const matches = [];
-    for (const lead of leads) {
+      // 3. Generate match
       const match = await matchmakeAgencyLead(lead, profile);
-      matches.push({
+      
+      // 4. Save the score back to the lead so it shows on the dashboard
+      await ctx.db.lead.update({
+        where: { id: lead.id },
+        data: { matchScore: match.score },
+      });
+
+      return {
         leadId: lead.id,
         leadName: lead.name,
         industry: lead.industry,
@@ -282,9 +291,6 @@ export const agencyRouter = createTRPCRouter({
         pros: match.pros,
         cons: match.cons,
         summary: match.summary,
-      });
-    }
-
-    return matches.sort((a, b) => b.score - a.score);
+      };
   }),
 });

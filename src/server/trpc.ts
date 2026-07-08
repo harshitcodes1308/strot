@@ -5,8 +5,10 @@ import { db } from "@/lib/db";
 
 // Simulated Context for now (since we skipped Clerk)
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  // Use header if provided, fallback to test_user_123
-  const clerkId = opts.headers.get("x-user-id") || "test_user_123";
+  // Use cookie or header if provided, fallback to test_user_123
+  const cookies = opts.headers.get("cookie") || "";
+  const match = cookies.match(new RegExp('(^| )simulated-user-id=([^;]+)'));
+  const clerkId = match ? match[2] : (opts.headers.get("x-user-id") || "test_user_123");
 
   // Predefined users for simulated testing
   const userMap: Record<string, { name: string; email: string }> = {
