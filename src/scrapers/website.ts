@@ -1,31 +1,5 @@
 /**
  * Website Scraper — Phase 1
- *
- * Crawls a company's own website to extract tech stack, performance data,
- * CMS detection, analytics presence, e-commerce indicators, and contact/CTA gaps.
- *
- * This scraper is primarily an ENRICHMENT source — it runs AFTER a business
- * has been found via Google Maps or LinkedIn, to fill in the website-layer data.
- * It can also be a discovery source via:
- *   - SerpAPI / ValueSERP Google web search for "{query} site:*.com"
- *   - Bing Web Search API (compliant, cheaper)
- *
- * What we extract:
- *   - Tech stack (Wappalyzer-style fingerprinting: script names, meta tags, headers)
- *   - CMS detection (WordPress, Webflow, Squarespace, Shopify, Wix, etc.)
- *   - Analytics presence (Google Analytics, Meta Pixel, Plausible, etc.)
- *   - E-commerce indicators (Shopify cart, WooCommerce, Stripe.js, etc.)
- *   - Performance score (Lighthouse via PageSpeed Insights API — free, no key needed)
- *   - Mobile score
- *   - SSL/HTTPS
- *   - Last-modified estimate (from HTTP headers or sitemap)
- *   - Has contact form (form[action], #contact, #inquiry)
- *   - Has booking/calendar widget (Calendly, Acuity, Cal.com embed)
- *   - Has pricing page (/pricing, /plans, /packages)
- *
- * Environment variable (optional):
- *   PAGESPEED_API_KEY — PageSpeed Insights API key (increases quota limit)
- *   SERP_API_KEY      — SerpAPI key for web discovery mode
  */
 
 import {
@@ -88,9 +62,6 @@ export class WebsiteScraper implements LeadSourceScraper {
     const limit = params.limit ?? 10;
     const serpKey = process.env.SERP_API_KEY;
 
-    /**
-     * DISCOVERY MODE — find company websites via SerpAPI web search:
-     */
     if (serpKey) {
       const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(params.query + " " + (params.location ?? ""))}&api_key=${serpKey}&num=${limit}`;
       const res = await fetch(searchUrl);
@@ -98,19 +69,10 @@ export class WebsiteScraper implements LeadSourceScraper {
     
       const urls: string[] = (data.organic_results ?? [])
         .map((r: any) => r.link)
-        .filter((url: string) => !isBlacklisted(url));  // skip social media, directories
+        .filter((url: string) => !isBlacklisted(url));
     
-      // Crawl each URL to extract tech stack + metadata
       return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
     }
-
-    /**
-     * ENRICHMENT MODE — given a known domain, crawl it:
-     * Called from GoogleMapsScraper / LinkedInScraper after extracting a website URL.
-     *
-     * const { url } = params as unknown as { url: string };
-     * if (url) return [await this._crawlUrl(url, cfg)];
-     */
 
     const isDomain = params.query.includes(".") && !params.query.includes(" ");
     if (isDomain) {
@@ -122,26 +84,16 @@ export class WebsiteScraper implements LeadSourceScraper {
       return [await this._crawlUrl(url, cfg)];
     }
 
-    console.log(`[Website] fetch called with non-domain query "${params.query}", falling back to mock discovery.`);
-    await new Promise(r => setTimeout(r, 800));
-    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
-      id: `web-mock-${Date.now()}-${i}`,
-      sourceId: this.id,
-      raw: {
-        title: `${params.query} - Official Site ${i}`,
-        url: `https://www.${params.query.replace(/\s+/g, "").toLowerCase()}${i}.com`,
-        html: "<html><body><script src='wp-includes/js/wp-emoji-release.min.js'></script></body></html>",
-      }
-    }));
+    console.log(`[Website] fetch called with non-domain query "${params.query}", no SERP API available — returning empty.`);
+    return [];
   }
 
-  /**
-   * Crawl a single URL and return a RawLeadData with HTML + headers
-   */
   private async _crawlUrl(
-    url: string,
+    rawUrl: string,
     cfg: BrowserConfig
   ): Promise<RawLeadData> {
+    // Ensure URL has a protocol
+    const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
     try {
       const { chromium } = await import("playwright-extra");
       const stealth = await (import("puppeteer-extra-plugin-stealth") as any);
@@ -157,7 +109,6 @@ export class WebsiteScraper implements LeadSourceScraper {
       const headers = response?.headers() ?? {};
       const statusCode = response?.status() ?? 0;
 
-      // Also fetch PageSpeed score
       const domain = new URL(url).hostname;
       const psScore = await this._fetchPageSpeedScore(domain);
 
@@ -165,14 +116,10 @@ export class WebsiteScraper implements LeadSourceScraper {
       return { sourceId: "website", raw: { url, html, headers, statusCode, psScore, title } };
     } catch (e: any) {
       console.warn(`[Website] Failed to crawl ${url}:`, e.message);
-      // Fallback for MVP if playwright fails
       return { sourceId: "website", raw: { url } };
     }
   }
 
-  /**
-   * Fetch Lighthouse performance score from PageSpeed Insights API (free tier)
-   */
   private async _fetchPageSpeedScore(domain: string): Promise<{ performance: number; mobile: number } | null> {
     try {
       const apiKey = process.env.PAGESPEED_API_KEY ?? "";
@@ -201,8 +148,7 @@ export class WebsiteScraper implements LeadSourceScraper {
   }
 
   parse(raw: RawLeadData): NormalizedLead {
-    // PRODUCTION:
-    const { url, html, headers, psScore, title } = raw.raw as {
+    const { url, html, headers, psScore, title } = (raw.raw || {}) as {
       url: string;
       html?: string;
       headers?: Record<string, string>;
@@ -245,22 +191,55 @@ export class WebsiteScraper implements LeadSourceScraper {
     const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
     const description = descMatch?.[1]?.trim() ?? "";
 
-    return { name, domain, description, sourceData: { website } };
+    const emailsMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+    const emails = emailsMatch ? Array.from(new Set(emailsMatch)).filter(e => !e.endsWith('.png') && !e.endsWith('.jpg') && !e.endsWith('.svg') && !e.endsWith('.webp')) : [];
+
+    return { 
+      name, 
+      domain, 
+      description, 
+      sourceData: { website, extractedEmails: emails } 
+    };
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
     const w = lead.sourceData.website as WebsiteData | undefined;
     const signals = computeOpportunitySignals({ website: w });
+    
+    const extractedEmails = (lead.sourceData.extractedEmails as string[]) || [];
+
+    let dataCompleteness = 30; // base score
+    if (w?.techStack?.length) dataCompleteness += 20;
+    if (extractedEmails.length > 0) dataCompleteness += 20;
+    if (lead.domain) dataCompleteness += 10;
+    if (lead.description) dataCompleteness += 20;
 
     return {
-      id: `website-${(lead.domain || "unknown").replace(/\./g, "-")}`,
+      id: lead.id || `website-${(lead.domain || "unknown").replace(/\./g, "-")}`,
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "Website profile",
+      domain: lead.domain ?? null,
+      description: lead.description ?? null,
+      avatar: lead.domain ? `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128` : null,
       source: sourceId,
+      sourceUrl: lead.domain ? `https://${lead.domain}` : "",
+      profileUrl: lead.domain ? `https://${lead.domain}` : "",
+      socialProfiles: {},
       sources: [sourceId],
-      location: lead.location,
-      industry: lead.industry,
+      emails: extractedEmails,
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: lead.employees ?? null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: w?.techStack ?? [],
+      hasWebsite: true,
+      isRunningAds: false,
+      dataCompleteness,
+      
       website: w,
       opportunitySignals: signals,
       isSaved: false,

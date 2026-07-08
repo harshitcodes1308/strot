@@ -3,6 +3,7 @@
  * STATUS: manual/beta — Meta blocks all automated access. ToS violation risk.
  * WORKAROUND: Use the Strot Chrome Extension while browsing Facebook Business pages.
  */
+import crypto from "crypto";
 import { LeadSourceScraper, BrowserConfig } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 
@@ -15,7 +16,34 @@ export class FacebookScraper implements LeadSourceScraper {
     return [];
   }
   parse(_r: RawLeadData): NormalizedLead { return { name: "Unknown", sourceData: {} }; }
-  normalize(_l: NormalizedLead, s: LeadSource): SearchResult {
-    return { id: "", name: "", domain: "", description: "", source: s, sources: [s], opportunitySignals: [], isSaved: false };
+  normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
+    return {
+      id: crypto.createHash("md5").update(`facebook-${lead.name}`).digest("hex"),
+      name: lead.name,
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Facebook page",
+      avatar: null,
+      source: sourceId,
+      sourceUrl: "",
+      profileUrl: null,
+      socialProfiles: {},
+      sources: [sourceId],
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: [],
+      isSaved: false,
+      dataCompleteness: 0,
+    };
   }
 }

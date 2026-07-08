@@ -5,26 +5,6 @@
  * Scrapes Google Maps search results via:
  *   - Google Places API (preferred where budget allows — compliant, fast)
  *   - Playwright scraper of maps.google.com as fallback
- *
- * What we extract:
- *   - Business name, description/summary
- *   - Place ID, rating, review count
- *   - Category (e.g. "Coffee Roaster", "Architecture Firm")
- *   - Address, phone, website URL
- *   - Opening hours (schema: "Mon-Fri 9–5")
- *   - Whether the listing is claimed/verified
- *
- * DECISION: Use Google Places API (Text Search + Place Details) as the primary
- * method. The Places API is compliant and returns clean structured data for
- * free-tier usage. Playwright fallback is implemented for when the Places
- * API quota is exhausted or the result is missing a field we need (e.g. review
- * sentiment, which is not in the API response).
- *
- * API endpoints:
- *   Text Search:   POST https://places.googleapis.com/v1/places:searchText
- *   Place Details: GET  https://places.googleapis.com/v1/places/{placeId}
- *
- * Environment variable required: GOOGLE_PLACES_API_KEY
  */
 
 import {
@@ -89,8 +69,6 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       textQuery,
       maxResultCount: Math.min(limit, 20),
       languageCode: "en",
-      // Request only what we need to minimize billing
-      // Full field mask for Places API v1:
     };
 
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -109,6 +87,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
           "places.websiteUri",
           "places.businessStatus",
           "places.regularOpeningHours.weekdayDescriptions",
+          "places.photos",
         ].join(","),
       },
       body: JSON.stringify(body),
@@ -167,40 +146,21 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       await browser.close();
       
       if (rawItems.length === 0) {
-        return this._getMockData(params, limit);
+        console.warn(`[GoogleMaps] No results found for ${query}`);
+        return [];
       }
       
       return rawItems;
     } catch (e: any) {
       console.warn(`[GoogleMaps] Playwright error:`, e.message);
-      return this._getMockData(params, limit);
+      return [];
     }
   }
 
-  private _getMockData(params: ScraperParams, limit: number): RawLeadData[] {
-    const category = params.industry || "Local Business";
-    const baseDomain = params.query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-    
-    return Array.from({ length: Math.min(3, limit) }).map((_, i) => ({
-      sourceId: "google_maps",
-      raw: {
-        html: `
-          <a class="hfpxzc" href="https://maps.google.com/?q=${encodeURIComponent(params.query)}"></a>
-          <div class="qBF1Pd fontHeadlineSmall">${params.query} ${i + 1}</div>
-          <div class="W4Efsd"><span>4.${8 - i}</span><span>(${150 + i*45})</span></div>
-          <div class="W4Efsd"><span>${category}</span></div>
-          <div class="W4Efsd"><span>${100+i} Main St, ${params.location ?? "City"}</span></div>
-          <div class="W4Efsd"><span>Open 24/7</span></div>
-          <div class="W4Efsd"><span>+1 555-010${i}</span></div>
-          <a data-item-id="authority" href="https://www.${baseDomain || "business"}${i + 1}.com">Website</a>
-          <a data-item-id="phone" href="tel:+1555010${i}">Phone</a>
-        `
-      }
-    }));
-  }
+
 
   parse(raw: RawLeadData): NormalizedLead {
-    if (raw.raw.place) {
+    if (raw.raw && raw.raw.place) {
       // API path
       const place = raw.raw.place as GooglePlaceResult;
       const google: GoogleMapsData = {
@@ -217,7 +177,12 @@ export class GoogleMapsScraper implements LeadSourceScraper {
 
       const domain = place.websiteUri
         ? place.websiteUri.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
-        : `${place.displayName.text.toLowerCase().replace(/\s+/g, "")}.com`;
+        : null;
+
+      let photoUrl = null;
+      if (place.photos && place.photos.length > 0) {
+        photoUrl = `https://places.googleapis.com/v1/${place.photos[0].name}/media?maxHeightPx=400&maxWidthPx=400&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+      }
 
       return {
         name:        place.displayName.text,
@@ -225,14 +190,14 @@ export class GoogleMapsScraper implements LeadSourceScraper {
         description: `${humanizeCategory(place.primaryType ?? "")} — ${place.formattedAddress}. ${place.rating}★ (${place.userRatingCount} reviews).`,
         location:    extractCity(place.formattedAddress ?? ""),
         industry:    humanizeCategory(place.primaryType ?? ""),
-        sourceData:  { google },
+        sourceData:  { google, photoUrl },
       };
     }
 
     // DOM path
-    const { html } = raw.raw as { html: string };
+    const { html } = (raw.raw || {}) as { html: string };
     const cheerio = require("cheerio");
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(html || "");
     
     const name = $(GOOGLE_MAPS_SELECTORS.name).text().trim() || "Unknown Location";
     const rating = parseFloat($(GOOGLE_MAPS_SELECTORS.rating).text().trim()) || 0;
@@ -243,25 +208,58 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     const website = $(GOOGLE_MAPS_SELECTORS.website).attr("href") ?? "";
     const phone = $(GOOGLE_MAPS_SELECTORS.phone).attr("href")?.replace("tel:", "") ?? "";
     
-    const domain = website ? website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] : `${name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}.com`;
-    const google: GoogleMapsData = { rating, reviewCount, category, address, phone };
+    const domain = website ? website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] : null;
+    const google: GoogleMapsData = { rating, reviewCount, category, address, phone, website };
     
-    return { name, domain, description: `${category} — ${address}. ${rating}★ (${reviewCount} reviews).`, location: extractCity(address), industry: category, sourceData: { google } };
+    return { 
+      name, 
+      domain, 
+      description: `${category} — ${address}. ${rating}★ (${reviewCount} reviews).`, 
+      location: extractCity(address), 
+      industry: category, 
+      sourceData: { google } 
+    };
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
     const g = lead.sourceData.google as GoogleMapsData | undefined;
     const signals = computeOpportunitySignals({ google: g });
 
+    const hasWebsite = !!g?.website || !!lead.domain;
+    let dataCompleteness = 30;
+    if (g?.phone) dataCompleteness += 20;
+    if (hasWebsite) dataCompleteness += 20;
+    if (lead.location) dataCompleteness += 10;
+    if (g?.rating) dataCompleteness += 10;
+    if (g?.reviewCount) dataCompleteness += 10;
+
     return {
-      id: `google-${g?.placeId ?? (lead.domain || "unknown").replace(/\./g, "-")}`,
+      id: lead.id || `google-${g?.placeId ?? (lead.domain || "unknown").replace(/\./g, "-")}`,
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "Google Maps listing",
+      domain: lead.domain ?? null,
+      description: lead.description ?? null,
+      avatar: lead.sourceData?.photoUrl
+        ?? (lead.domain ? `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128` : null),
       source: sourceId,
+      sourceUrl: g?.placeId ? `https://www.google.com/maps/place/?q=place_id:${g.placeId}` : `https://www.google.com/maps/search/${encodeURIComponent(lead.name)}`,
+      profileUrl: g?.website || (g?.placeId ? `https://www.google.com/maps/place/?q=place_id:${g.placeId}` : `https://www.google.com/maps/search/${encodeURIComponent(lead.name)}`),
+      socialProfiles: {},
       sources: [sourceId],
-      location: lead.location,
-      industry: lead.industry,
+      emails: [],
+      phones: g?.phone ? [g.phone] : [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: lead.employees ?? null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: g?.rating ?? null,
+      reviewCount: g?.reviewCount ?? null,
+      techStack: [],
+      hasWebsite,
+      isRunningAds: false,
+      dataCompleteness,
+      
       google: g,
       opportunitySignals: signals,
       isSaved: false,
@@ -282,6 +280,7 @@ interface GooglePlaceResult {
   websiteUri?: string;
   businessStatus?: string;
   regularOpeningHours?: { weekdayDescriptions: string[] };
+  photos?: Array<{ name: string; widthPx?: number; heightPx?: number }>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -292,6 +291,5 @@ function humanizeCategory(type: string): string {
 
 function extractCity(address: string): string {
   const parts = address.split(",").map(p => p.trim());
-  // US: "Street, City, State ZIP" → parts[1] is city
   return parts.length >= 2 ? `${parts[1]}, ${parts[2]?.split(" ")[0] ?? ""}`.trim() : address;
 }

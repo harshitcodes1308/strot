@@ -14,7 +14,8 @@ import {
   CheckCircle,
   Clock,
   Coins,
-  FolderSimple
+  FolderSimple,
+  ArrowUpRight
 } from "@phosphor-icons/react";
 import Link from "next/link";
 
@@ -117,9 +118,76 @@ export default function LeadDetailPage() {
       </Link>
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6">
-        <div>
-          <h1 className="text-3xl font-bold font-display">{lead.name}</h1>
-          <p className="text-sm opacity-70 mt-1">{lead.domain || "No domain"} • {lead.industry || "No industry"}</p>
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 rounded-xl bg-[var(--surface-raised)] border border-white/10 flex items-center justify-center text-3xl font-bold text-[var(--primary)] overflow-hidden shrink-0">
+            {(() => {
+              const avatarSrc = lead.avatar 
+                || (lead.domain ? `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128` : null);
+              return avatarSrc ? (
+                <img 
+                  src={avatarSrc} 
+                  alt={lead.name} 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (lead.domain && !target.src.includes('google.com/s2/favicons')) {
+                      target.src = `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128`;
+                    } else if (!target.src.includes('ui-avatars')) {
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(lead.name)}&background=random&color=fff&size=128`;
+                    } else {
+                      target.style.display = 'none';
+                      target.parentElement!.innerText = lead.name[0];
+                    }
+                  }} 
+                />
+              ) : (
+                <span>{lead.name?.[0] || '?'}</span>
+              );
+            })()}
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold font-display">{lead.name}</h1>
+            <div className="flex flex-wrap items-center gap-3 text-sm opacity-70 mt-2">
+              {lead.domain ? (
+                <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--primary)] hover:underline flex items-center gap-1 transition-all">
+                  {lead.domain}
+                </a>
+              ) : (
+                <span>No domain</span>
+              )}
+              <span>•</span>
+              <span>{lead.industry || "No industry"}</span>
+              {lead.profileUrl && (
+                <>
+                  <span>•</span>
+                  <a href={lead.profileUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--primary)] hover:underline flex items-center gap-1 transition-all">
+                    Profile Link <ArrowUpRight size={12} />
+                  </a>
+                </>
+              )}
+            </div>
+            
+            {(lead.emails?.length > 0 || lead.phones?.length > 0) && (
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                {lead.emails?.map((email: string) => (
+                  <span key={email} className="badge badge-success text-[10px] px-2 py-1 flex items-center gap-1.5 cursor-pointer hover:bg-[var(--success-hover)] transition-colors" onClick={() => {
+                    navigator.clipboard.writeText(email);
+                    alert("Email copied!");
+                  }}>
+                    {email}
+                  </span>
+                ))}
+                {lead.phones?.map((phone: string) => (
+                  <span key={phone} className="badge badge-default text-[10px] px-2 py-1 flex items-center gap-1.5 cursor-pointer hover:bg-[var(--border)] transition-colors" onClick={() => {
+                    navigator.clipboard.writeText(phone);
+                    alert("Phone copied!");
+                  }}>
+                    {phone}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -157,6 +225,7 @@ export default function LeadDetailPage() {
               </option>
             ))}
           </select>
+        </div>
         </div>
       </header>
 

@@ -10,6 +10,7 @@
  * profiles from your browser session with one click.
  */
 
+import crypto from "crypto";
 import { LeadSourceScraper, BrowserConfig } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 
@@ -27,7 +28,34 @@ export class ClutchScraper implements LeadSourceScraper {
     return { name: "Unknown", sourceData: {} };
   }
 
-  normalize(_lead: NormalizedLead, sourceId: LeadSource): SearchResult {
-    return { id: "", name: "", domain: "", description: "", source: sourceId, sources: [sourceId], opportunitySignals: [], isSaved: false };
+  normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
+    return {
+      id: crypto.createHash("md5").update(`clutch-${lead.name}`).digest("hex"),
+      name: lead.name,
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Clutch profile",
+      avatar: null,
+      source: sourceId,
+      sourceUrl: "",
+      profileUrl: null,
+      socialProfiles: {},
+      sources: [sourceId],
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: [],
+      isSaved: false,
+      dataCompleteness: 0,
+    };
   }
 }

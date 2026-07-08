@@ -31,6 +31,10 @@ import { LinkedInScraper }    from "./linkedin";
 import { InstagramScraper }   from "./instagram";
 import { GoogleMapsScraper }  from "./google-maps";
 import { WebsiteScraper }     from "./website";
+// NOTE: The following stub scrapers are intentionally NOT registered here.
+// googleDorkingScraper, businessDirectoriesScraper, adLibrariesScraper all use id 'website',
+// and socialPostsScraper uses id 'twitter_x'. Registering them would overwrite the real
+// WebsiteScraper and TwitterXScraper in the orchestrator due to ID conflicts.
 
 // Phase 5 scrapers — live
 import { GithubScraper }      from "./github";
@@ -54,6 +58,7 @@ orchestrator.register(new LinkedInScraper());
 orchestrator.register(new InstagramScraper());
 orchestrator.register(new GoogleMapsScraper());
 orchestrator.register(new WebsiteScraper());
+
 
 // Register Phase 5 — live
 orchestrator.register(new GithubScraper());

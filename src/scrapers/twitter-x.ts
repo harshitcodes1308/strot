@@ -4,7 +4,7 @@
  * Set X_BEARER_TOKEN in .env when available.
  * Sign up at: https://developer.x.com
  */
-import { LeadSourceScraper, BrowserConfig } from "./base";
+import { LeadSourceScraper, BrowserConfig, computeCompleteness } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 import { computeOpportunitySignals } from "./signals";
 import crypto from "crypto";
@@ -50,17 +50,40 @@ export class TwitterXScraper implements LeadSourceScraper {
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
-    const user = lead.sourceData["twitter_x"] as Record<string, unknown> | undefined;
-    return {
-      id: crypto.createHash("md5").update(`twitter-${user?.id ?? lead.name}`).digest("hex"),
+    const user = lead.sourceData.twitter_x as any;
+    const username = user?.username || "";
+    const url = username ? `https://twitter.com/${username}` : "";
+    const metrics = user?.public_metrics as Record<string, number> | undefined;
+    
+    const result: Partial<SearchResult> = {
+      id: crypto.createHash("md5").update(`x-${lead.name}`).digest("hex"),
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "Twitter/X profile",
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Twitter profile",
+      avatar: user?.profile_image_url || null,
       source: sourceId,
+      sourceUrl: url,
+      profileUrl: url,
+      socialProfiles: {},
       sources: [sourceId],
-      location: lead.location,
-      opportunitySignals: computeOpportunitySignals(lead as any),
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: metrics?.followers_count ?? null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
     };
+    
+    (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);
+    return result as SearchResult;
   }
 }

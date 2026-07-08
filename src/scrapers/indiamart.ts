@@ -45,16 +45,32 @@ export class IndiaMartScraper implements LeadSourceScraper {
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
     return {
-      id: crypto.createHash("md5").update(`indiamart-${lead.name}`).digest("hex"),
+      id: crypto.createHash("md5").update(`im-${lead.name}`).digest("hex"),
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "IndiaMART listing",
+      domain: lead.domain ?? null,
+      description: lead.description ?? "IndiaMART supplier",
+      avatar: null,
       source: sourceId,
+      sourceUrl: "",
+      profileUrl: null,
+      socialProfiles: {},
       sources: [sourceId],
-      location: lead.location,
-      industry: lead.industry,
-      opportunitySignals: computeOpportunitySignals(lead as any),
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: [],
       isSaved: false,
+      dataCompleteness: 0,
     };
   }
 }

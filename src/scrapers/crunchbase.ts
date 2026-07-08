@@ -8,7 +8,7 @@
  * Set CRUNCHBASE_API_KEY in .env to enable.
  */
 
-import { LeadSourceScraper, BrowserConfig } from "./base";
+import { LeadSourceScraper, BrowserConfig, computeCompleteness } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 import { computeOpportunitySignals } from "./signals";
 import crypto from "crypto";
@@ -50,10 +50,12 @@ export class CrunchbaseScraper implements LeadSourceScraper {
   parse(raw: RawLeadData): NormalizedLead {
     const e = raw.raw as Record<string, unknown>;
     const props = (e.properties ?? {}) as Record<string, unknown>;
+    const websiteUrl = props.website_url as string | undefined;
+    const domain = websiteUrl ? websiteUrl.replace(/^https?:\/\//, "").split("/")[0] : undefined;
     return {
       name: (props.identifier as { value: string })?.value ?? "Unknown",
       description: props.short_description as string | undefined,
-      domain: props.website_url as string | undefined,
+      domain,
       sources: [this.id],
       opportunitySignals: ["Crunchbase listed — venture-backed or notable company"],
       sourceData: { crunchbase: props },
@@ -61,15 +63,39 @@ export class CrunchbaseScraper implements LeadSourceScraper {
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
-    return {
-      id: crypto.createHash("md5").update(`crunchbase-${lead.name}`).digest("hex"),
+    const props = lead.sourceData.crunchbase as any;
+    const identifier = props?.identifier?.permalink || "";
+    const url = identifier ? `https://www.crunchbase.com/organization/${identifier}` : "";
+    
+    const result: Partial<SearchResult> = {
+      id: crypto.createHash("md5").update(`cb-${lead.name}`).digest("hex"),
       name: lead.name,
-      domain: lead.domain ?? "",
+      domain: lead.domain ?? null,
       description: lead.description ?? "Crunchbase listing",
+      avatar: lead.domain ? `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128` : null,
       source: sourceId,
+      sourceUrl: url,
+      profileUrl: url,
+      socialProfiles: {},
       sources: [sourceId],
-      opportunitySignals: computeOpportunitySignals(lead as any),
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
     };
+    
+    (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);
+    return result as SearchResult;
   }
 }

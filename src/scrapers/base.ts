@@ -131,7 +131,8 @@ export function jaroWinkler(s1: string, t1: string): number {
 }
 
 /** Normalize a domain for comparison (strip www, protocol, trailing slash) */
-export function normalizeDomain(domain: string): string {
+export function normalizeDomain(domain: string | null): string {
+  if (!domain) return "";
   return domain
     .replace(/^https?:\/\//i, "")
     .replace(/^www\./i, "")
@@ -151,6 +152,35 @@ export function areDuplicates(a: SearchResult, b: SearchResult): boolean {
   return false;
 }
 
+export function computeCompleteness(result: Partial<SearchResult>): number {
+  let score = 0;
+  const weights: Record<string, number> = {
+    name: 5,
+    domain: 10,
+    description: 5,
+    emails: 30, // Having emails is most important
+    phones: 20,
+    location: 5,
+    industry: 5,
+    socialProfiles: 10,
+    followers: 5,
+    avatar: 5,
+  };
+  
+  if (result.name) score += weights.name;
+  if (result.domain) score += weights.domain;
+  if (result.description) score += weights.description;
+  if (result.emails && result.emails.length > 0) score += weights.emails;
+  if (result.phones && result.phones.length > 0) score += weights.phones;
+  if (result.location) score += weights.location;
+  if (result.industry) score += weights.industry;
+  if (result.socialProfiles && Object.keys(result.socialProfiles).length > 0) score += weights.socialProfiles;
+  if (result.followers !== null && result.followers !== undefined) score += weights.followers;
+  if (result.avatar) score += weights.avatar;
+  
+  return Math.min(100, score);
+}
+
 /**
  * Merge a list of SearchResults from multiple scrapers.
  * When duplicates are detected, merges source lists and keeps the richer record.
@@ -162,22 +192,42 @@ export function deduplicateResults(results: SearchResult[]): SearchResult[] {
     const existingIdx = merged.findIndex(m => areDuplicates(m, result));
 
     if (existingIdx >= 0) {
-      // Merge sources
       const existing = merged[existingIdx];
       const allSources = Array.from(new Set([...existing.sources, ...result.sources])) as LeadSource[];
 
-      // Keep the richer description (longer one wins)
-      const description = result.description.length > existing.description.length
+      // Keep the richer description
+      const description = (result.description?.length ?? 0) > (existing.description?.length ?? 0)
         ? result.description
         : existing.description;
 
-      // Merge enrichment data
-      merged[existingIdx] = {
+      const mergedSocials = { ...(existing.socialProfiles || {}), ...(result.socialProfiles || {}) };
+
+      const mergedResult: SearchResult = {
         ...existing,
         ...result,
+        name: existing.name || result.name,
+        domain: existing.domain || result.domain,
         description,
+        avatar: existing.avatar || result.avatar,
         sources: allSources,
         source: existing.source,          // keep original primary source
+        sourceUrl: existing.sourceUrl || result.sourceUrl,
+        profileUrl: existing.profileUrl || result.profileUrl,
+        socialProfiles: Object.keys(mergedSocials).length > 0 ? mergedSocials : undefined,
+        emails: Array.from(new Set([...(existing.emails || []), ...(result.emails || [])])),
+        phones: Array.from(new Set([...(existing.phones || []), ...(result.phones || [])])),
+        location: existing.location || result.location,
+        industry: existing.industry || result.industry,
+        employeeCount: existing.employeeCount || result.employeeCount,
+        foundedYear: existing.foundedYear || result.foundedYear,
+        followers: Math.max(existing.followers ?? 0, result.followers ?? 0) || null,
+        engagement: Math.max(existing.engagement ?? 0, result.engagement ?? 0) || null,
+        rating: Math.max(existing.rating ?? 0, result.rating ?? 0) || null,
+        reviewCount: Math.max(existing.reviewCount ?? 0, result.reviewCount ?? 0) || null,
+        techStack: Array.from(new Set([...(existing.techStack || []), ...(result.techStack || [])])),
+        hasWebsite: existing.hasWebsite || result.hasWebsite,
+        isRunningAds: existing.isRunningAds || result.isRunningAds,
+        
         linkedin: existing.linkedin ?? result.linkedin,
         instagram: existing.instagram ?? result.instagram,
         google: existing.google ?? result.google,
@@ -187,9 +237,15 @@ export function deduplicateResults(results: SearchResult[]): SearchResult[] {
           ...(result.opportunitySignals ?? []),
         ])),
         isSaved: existing.isSaved || result.isSaved,
+        dataCompleteness: 0, // Computed below
       };
+      
+      mergedResult.dataCompleteness = computeCompleteness(mergedResult);
+      merged[existingIdx] = mergedResult;
     } else {
-      merged.push({ ...result });
+      const newResult = { ...result };
+      newResult.dataCompleteness = computeCompleteness(newResult);
+      merged.push(newResult);
     }
   }
 

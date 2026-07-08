@@ -155,11 +155,28 @@ export default function SearchPage() {
       await saveMutation.mutateAsync({
         id: result.id,
         name: result.name,
-        domain: result.domain,
-        description: result.description,
-        location: result.location,
-        industry: result.industry,
+        domain: result.domain ?? undefined,
+        description: result.description ?? undefined,
+        avatar: result.avatar ?? undefined,
+        source: result.source,
+        sourceUrl: result.sourceUrl,
+        profileUrl: result.profileUrl ?? undefined,
+        socialProfiles: result.socialProfiles,
         sources: result.sources,
+        emails: result.emails,
+        phones: result.phones,
+        location: result.location ?? undefined,
+        industry: result.industry ?? undefined,
+        employeeCount: result.employeeCount ?? undefined,
+        foundedYear: result.foundedYear ?? undefined,
+        followers: result.followers ?? undefined,
+        engagement: result.engagement ?? undefined,
+        rating: result.rating ?? undefined,
+        reviewCount: result.reviewCount ?? undefined,
+        techStack: result.techStack,
+        hasWebsite: result.hasWebsite,
+        isRunningAds: result.isRunningAds,
+        dataCompleteness: result.dataCompleteness,
         opportunitySignals: result.opportunitySignals ?? [],
         linkedin: result.linkedin,
         instagram: result.instagram,
@@ -421,16 +438,51 @@ function SearchResultRow({
       onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-raised)")}
       onMouseLeave={e => (e.currentTarget.style.background = "")}
     >
-      {/* Logo */}
-      <div style={{ width: 36, height: 36, borderRadius: "var(--r-md)", background: "var(--surface-raised)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>
-        {result.name[0]}
+      {/* Logo / Avatar */}
+      <div style={{ width: 36, height: 36, borderRadius: "var(--r-md)", background: "var(--surface-raised)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--primary)", flexShrink: 0, overflow: "hidden" }}>
+        {(() => {
+          // Build avatar URL: prefer result.avatar, then Google Favicons for domain, then UI Avatars
+          const avatarSrc = result.avatar 
+            || (result.domain ? `https://www.google.com/s2/favicons?domain=${result.domain}&sz=128` : null);
+          return avatarSrc ? (
+            <img 
+              src={avatarSrc} 
+              alt={result.name} 
+              style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                // Try Google Favicons if not already trying it
+                if (result.domain && !target.src.includes('google.com/s2/favicons')) {
+                  target.src = `https://www.google.com/s2/favicons?domain=${result.domain}&sz=128`;
+                } else if (!target.src.includes('ui-avatars')) {
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name)}&background=random&color=fff&size=128`;
+                } else {
+                  target.style.display = 'none';
+                  target.parentElement!.innerText = result.name[0];
+                }
+              }} 
+            />
+          ) : (
+            <span>{result.name?.[0] || '?'}</span>
+          );
+        })()}
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>{result.name}</span>
-          <span className="mono" style={{ fontSize: 11, color: "var(--ink-muted)" }}>{result.domain}</span>
+          {result.profileUrl ? (
+            <a href={result.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em", textDecoration: "none" }} onClick={e => e.stopPropagation()}>
+              {result.name}
+            </a>
+          ) : (
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>{result.name}</span>
+          )}
+          {result.domain && (
+            <a href={`https://${result.domain}`} target="_blank" rel="noopener noreferrer" className="mono" style={{ fontSize: 11, color: "var(--ink-muted)", textDecoration: "none" }} onClick={e => e.stopPropagation()}>
+              {result.domain}
+            </a>
+          )}
           {isSaved && <span className="badge badge-primary" style={{ fontSize: 10 }}>Saved</span>}
         </div>
 
@@ -443,9 +495,28 @@ function SearchResultRow({
           {/* Sources */}
           <div style={{ display: "flex", gap: 4 }}>
             {result.sources.map(s => {
-              const opt = SOURCE_OPTS.find(o => o.value === s)!;
+              const opt = SOURCE_OPTS.find(o => o.value === s);
               if (!opt) return null;
-              return (
+              // Resolve source link: try socialProfiles with various key formats, then sourceUrl
+              const profiles = (result.socialProfiles || {}) as Record<string, string | undefined>;
+              let url: string | null = null;
+              if (s === "website" && result.domain) {
+                url = `https://${result.domain}`;
+              } else if (s === "google_maps") {
+                // socialProfiles may use key "google_maps" or "google"
+                url = profiles["google_maps"] || profiles["google"] || (s === result.source ? result.sourceUrl : null);
+              } else {
+                url = profiles[s] || (s === result.source ? result.sourceUrl : null);
+              }
+              // Filter out empty strings
+              if (url === "") url = null;
+
+              return url ? (
+                <a key={s} href={url} target="_blank" rel="noopener noreferrer" className={`source-pill ${opt.cls}`} style={{ fontSize: 10, textDecoration: "none" }} onClick={e => e.stopPropagation()}>
+                  <opt.icon size={9} weight="fill" />
+                  {opt.label}
+                </a>
+              ) : (
                 <span key={s} className={`source-pill ${opt.cls}`} style={{ fontSize: 10 }}>
                   <opt.icon size={9} weight="fill" />
                   {opt.label}
@@ -457,6 +528,19 @@ function SearchResultRow({
           {result.location && (
             <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
               <MapPin size={10} /> {result.location}
+            </span>
+          )}
+
+          {result.emails && result.emails.length > 0 && (
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
+              <span className="badge badge-success" style={{ fontSize: 9, padding: "2px 4px" }}>{result.emails[0]}</span>
+              {result.emails.length > 1 && <span style={{ fontSize: 9 }}>+{result.emails.length - 1}</span>}
+            </span>
+          )}
+
+          {result.phones && result.phones.length > 0 && (
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
+              <span className="badge badge-default" style={{ fontSize: 9, padding: "2px 4px" }}>{result.phones[0]}</span>
             </span>
           )}
 

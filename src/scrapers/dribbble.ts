@@ -4,6 +4,7 @@
  * Set DRIBBBLE_ACCESS_TOKEN in .env when available.
  * Register app at: https://dribbble.com/account/applications
  */
+import crypto from "crypto";
 import { LeadSourceScraper, BrowserConfig } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 
@@ -18,7 +19,34 @@ export class DribbbleScraper implements LeadSourceScraper {
     return [];
   }
   parse(_r: RawLeadData): NormalizedLead { return { name: "Unknown", sourceData: {} }; }
-  normalize(_l: NormalizedLead, s: LeadSource): SearchResult {
-    return { id: "", name: "", domain: "", description: "", source: s, sources: [s], opportunitySignals: [], isSaved: false };
+  normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
+    return {
+      id: crypto.createHash("md5").update(`dribbble-${lead.name}`).digest("hex"),
+      name: lead.name,
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Dribbble profile",
+      avatar: null,
+      source: sourceId,
+      sourceUrl: "",
+      profileUrl: null,
+      socialProfiles: {},
+      sources: [sourceId],
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: [],
+      isSaved: false,
+      dataCompleteness: 0,
+    };
   }
 }

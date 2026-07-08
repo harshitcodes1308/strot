@@ -456,9 +456,25 @@ export default function AllLeadsPage() {
                             fontWeight: 700,
                             color: "var(--primary)",
                             flexShrink: 0,
+                            overflow: "hidden"
                           }}
                         >
-                          {lead.name[0]}
+                          {lead.avatar ? (
+                            <img 
+                              src={lead.avatar} 
+                              alt={lead.name} 
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                if (!target.src.includes('ui-avatars')) {
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(lead.name)}&background=random&color=fff&size=128`;
+                                } else {
+                                  target.style.display = 'none';
+                                  target.parentElement!.innerText = lead.name[0];
+                                }
+                              }} 
+                            />
+                          ) : lead.name[0]}
                         </div>
                         <div>
                           <Link
@@ -467,9 +483,22 @@ export default function AllLeadsPage() {
                           >
                             {lead.name}
                           </Link>
-                          <div className="mono" style={{ fontSize: 11, color: "var(--ink-muted)" }}>
-                            {lead.domain || "No domain"}
-                          </div>
+                          {lead.domain ? (
+                            <a
+                              href={`https://${lead.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mono hover:text-[var(--primary)] hover:underline"
+                              style={{ fontSize: 11, color: "var(--ink-muted)", textDecoration: "none", display: "inline-block" }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {lead.domain}
+                            </a>
+                          ) : (
+                            <div className="mono" style={{ fontSize: 11, color: "var(--ink-muted)" }}>
+                              No domain
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

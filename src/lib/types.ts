@@ -76,32 +76,107 @@ export interface WebsiteData {
 
 export interface Lead {
   id: string;
+  workspaceId: string;
+  
+  // Identity
   name: string;
-  domain: string;
-  description: string;
-  source: LeadSource;          // primary source (first found)
-  sources: LeadSource[];       // all sources this lead was found on (merged)
-  status: LeadStatus;
-  tags: string[];
-  location?: string;
-  industry?: string;
-  employees?: string;
-  foundedYear?: number;
-
-  // Per-source enrichment data
+  domain: string | null;
+  description: string | null;
+  avatar: string | null;
+  
+  // Source tracking
+  source: LeadSource;
+  sourceUrl: string;
+  profileUrl: string | null;
+  socialProfiles?: {
+    linkedin?: string;
+    instagram?: string;
+    twitter?: string;
+    facebook?: string;
+    github?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
+  sources: LeadSource[];
+  
+  // Contact
+  emails: string[];
+  phones: string[];
+  contactSources?: {
+    email: string;
+    foundOn: string;
+    confidence: 'high' | 'medium' | 'low';
+  }[];
+  
+  // Business
+  location: string | null;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    zip?: string;
+  } | null;
+  industry: string | null;
+  employeeCount: string | null;
+  foundedYear: number | null;
+  revenue: string | null;
+  
+  // Owner
+  ownerName: string | null;
+  ownerTitle: string | null;
+  ownerEmail: string | null;
+  ownerPhone: string | null;
+  ownerLinkedIn: string | null;
+  
+  // Social metrics
+  followers: number | null;
+  following: number | null;
+  engagement: number | null;
+  postCount: number | null;
+  lastPostDate: Date | null;
+  
+  // Review & reputation
+  rating: number | null;
+  reviewCount: number | null;
+  
+  // Technical
+  techStack: string[];
+  hasWebsite: boolean;
+  websiteStatus: 'live' | 'down' | 'redirect' | 'parked' | null;
+  
+  // Per-source enrichment data (Legacy/Raw)
   linkedin?: LinkedInData;
   instagram?: InstagramData;
   google?: GoogleMapsData;
   website?: WebsiteData;
-
-  // Opportunity signals (set on save, computed from enrichment)
+  
+  // Opportunity
   opportunitySignals?: string[];
-
+  buyingSignals?: string[];
+  opportunityScore: number | null;
+  matchScore: number | null;
+  postmortem?: any;
+  audit?: any;
+  
+  // Ads
+  isRunningAds: boolean;
+  adPlatforms: string[];
+  adCount: number | null;
+  
+  // Dashboard state
+  status: LeadStatus;
   notes?: string;
-  savedAt: Date;
   folderId?: string;
+  assignedToId?: string;
+  
+  // Meta
+  dataCompleteness: number;
+  scrapedAt: Date;
+  enrichedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
-
 export interface Folder {
   id: string;
   name: string;
@@ -112,21 +187,46 @@ export interface Folder {
 export interface SearchResult {
   id: string;
   name: string;
-  domain: string;
-  description: string;
+  domain: string | null;
+  description: string | null;
+  avatar: string | null;
   source: LeadSource;
+  sourceUrl: string;
+  profileUrl: string | null;
+  socialProfiles?: {
+    linkedin?: string;
+    instagram?: string;
+    twitter?: string;
+    facebook?: string;
+    github?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
   sources: LeadSource[];
-  location?: string;
-  industry?: string;
-  employees?: string;
+  emails: string[];
+  phones: string[];
+  location: string | null;
+  industry: string | null;
+  employeeCount: string | null;
+  foundedYear: number | null;
+  followers: number | null;
+  engagement: number | null;
+  rating: number | null;
+  reviewCount: number | null;
+  techStack: string[];
+  hasWebsite: boolean;
+  isRunningAds: boolean;
+  dataCompleteness: number;
+  
+  // Legacy payload
   linkedin?: LinkedInData;
   instagram?: InstagramData;
   google?: GoogleMapsData;
   website?: WebsiteData;
   opportunitySignals?: string[];
+  
   isSaved: boolean;
 }
-
 export interface SearchFilters {
   query: string;
   location: string;
@@ -154,18 +254,19 @@ export interface ScraperParams {
 
 export interface RawLeadData {
   sourceId: LeadSource;
-  raw: Record<string, unknown>;
+  raw?: Record<string, unknown>;
+  [key: string]: any;
 }
 
 export interface NormalizedLead {
+  id?: string;
   name: string;
-  domain?: string;
+  domain?: string | null;
   description?: string;
-  location?: string;
-  industry?: string;
+  location?: string | null;
+  industry?: string | null;
   employees?: string;
   sources?: string[];
   opportunitySignals?: string[];
-  // Phase 1 sources use typed keys; Phase 5 sources add their own keys
-  sourceData: Partial<Pick<Lead, "linkedin" | "instagram" | "google" | "website">> & Record<string, unknown>;
+  sourceData: any;
 }

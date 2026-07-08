@@ -4,7 +4,7 @@
  * Strong for surfacing industry communities that signal high-density prospecting areas.
  */
 
-import { LeadSourceScraper, BrowserConfig } from "./base";
+import { LeadSourceScraper, BrowserConfig, computeCompleteness } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 import { computeOpportunitySignals } from "./signals";
 import crypto from "crypto";
@@ -59,17 +59,38 @@ export class RedditScraper implements LeadSourceScraper {
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
-    const sr = lead.sourceData["reddit"] as Record<string, unknown> | undefined;
-    return {
-      id: crypto.createHash("md5").update(`reddit-${sr?.id ?? lead.name}`).digest("hex"),
+    const sr = lead.sourceData.reddit as any;
+    const url = sr?.display_name ? `https://www.reddit.com/r/${sr.display_name}` : "";
+    
+    const result: Partial<SearchResult> = {
+      id: crypto.createHash("md5").update(`reddit-${lead.name}`).digest("hex"),
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "Reddit community",
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Reddit mention",
+      avatar: sr?.icon_img || sr?.community_icon || null,
       source: sourceId,
+      sourceUrl: url,
+      profileUrl: url,
+      socialProfiles: {},
       sources: [sourceId],
-      industry: lead.industry,
-      opportunitySignals: computeOpportunitySignals(lead as any),
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
     };
+    
+    (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);
+    return result as SearchResult;
   }
 }

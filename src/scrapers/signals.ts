@@ -57,7 +57,7 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
     const ig = data.instagram;
 
     // High engagement but relying on DMs
-    if (ig.engagementRate && ig.engagementRate > 3.0 && ig.bio?.toLowerCase().includes("dm")) {
+    if (ig.engagementRate && ig.engagementRate > 0.03 && ig.bio?.toLowerCase().includes("dm")) {
       signals.push("High engagement — DM-only intake, no booking");
     }
 
@@ -80,8 +80,8 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
     }
 
     // Strong engagement rate above category average
-    if (ig.engagementRate && ig.engagementRate > 5.0) {
-      signals.push(`${ig.engagementRate}% IG engagement rate — above average`);
+    if (ig.engagementRate && ig.engagementRate > 0.05) {
+      signals.push(`${(ig.engagementRate * 100).toFixed(1)}% IG engagement rate — above average`);
     }
 
     // No website at all despite Instagram presence

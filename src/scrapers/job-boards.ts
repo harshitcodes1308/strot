@@ -4,7 +4,7 @@
  * Hiring activity = strong buying signal for digital services.
  */
 
-import { LeadSourceScraper, BrowserConfig } from "./base";
+import { LeadSourceScraper, BrowserConfig, computeCompleteness } from "./base";
 import { LeadSource, SearchResult, ScraperParams, RawLeadData, NormalizedLead } from "@/lib/types";
 import { computeOpportunitySignals } from "./signals";
 import crypto from "crypto";
@@ -78,18 +78,46 @@ export class JobBoardsScraper implements LeadSourceScraper {
   }
 
   normalize(lead: NormalizedLead, sourceId: LeadSource): SearchResult {
-    const item = lead.sourceData["job_boards"] as Record<string, unknown> | undefined;
-    return {
-      id: crypto.createHash("md5").update(`hn-hiring-${item?.objectID ?? lead.name}`).digest("hex"),
+    const item = lead.sourceData.job_boards as any;
+    const objectID = item?.objectID || "";
+    const url = objectID ? `https://news.ycombinator.com/item?id=${objectID}` : "";
+    
+    // Try to extract domain from the first line text if possible (often formatted as "Company | Role | Location | URL")
+    let websiteUrl: string | null = null;
+    const urlMatch = item?.firstLine?.match(/(https?:\/\/[^\s|<]+)/);
+    if (urlMatch) {
+      websiteUrl = urlMatch[1];
+    }
+    
+    const result: Partial<SearchResult> = {
+      id: crypto.createHash("md5").update(`job-${lead.name}`).digest("hex"),
       name: lead.name,
-      domain: lead.domain ?? "",
-      description: lead.description ?? "Job board listing",
+      domain: lead.domain ?? null,
+      description: lead.description ?? "Job board posting",
+      avatar: null,
       source: sourceId,
+      sourceUrl: url,
+      profileUrl: websiteUrl || url,
+      socialProfiles: {},
       sources: [sourceId],
-      location: lead.location,
-      industry: lead.industry,
-      opportunitySignals: computeOpportunitySignals(lead as any),
+      emails: [],
+      phones: [],
+      location: lead.location ?? null,
+      industry: lead.industry ?? null,
+      employeeCount: null,
+      foundedYear: null,
+      followers: null,
+      engagement: null,
+      rating: null,
+      reviewCount: null,
+      techStack: [],
+      hasWebsite: !!lead.domain,
+      isRunningAds: false,
+      opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
     };
+    
+    (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);
+    return result as SearchResult;
   }
 }

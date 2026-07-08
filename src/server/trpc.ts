@@ -3,6 +3,8 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { db } from "@/lib/db";
 
+let dbSeeded = false;
+
 // Simulated Context for now (since we skipped Clerk)
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   // Use cookie or header if provided, fallback to test_user_123
@@ -43,7 +45,8 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   }
 
   // Check if database needs seeding of test leads
-  const leadCount = await db.lead.count();
+  if (!dbSeeded) {
+    const leadCount = await db.lead.count();
   if (leadCount === 0) {
     await db.lead.create({
       data: {
@@ -104,6 +107,8 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
         }
       }
     });
+    }
+    dbSeeded = true;
   }
 
   // 3. Ensure the current user has a WorkspaceMember membership in this workspace
@@ -154,6 +159,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   }
   return next({
     ctx: {
+      ...ctx,
       userId: ctx.userId,
       workspaceId: ctx.workspaceId,
       userRole: ctx.userRole,
