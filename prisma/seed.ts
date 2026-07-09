@@ -1,7 +1,7 @@
 /**
- * Database seed script — populates dev/test data.
+ * Database seed script - populates dev/test data.
  * Run with: npm run seed
- * Idempotent — safe to run multiple times.
+ * Idempotent - safe to run multiple times.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -70,7 +70,7 @@ async function main() {
         name: "Meridian Studio",
         domain: "meridianstudio.io",
         description:
-          "Architecture and interior design firm in NYC. Strong LinkedIn presence but weak website — no portfolio CMS, no contact form, no analytics.",
+          "Architecture and interior design firm in NYC. Strong LinkedIn presence but weak website - no portfolio CMS, no contact form, no analytics.",
         location: "New York, NY",
         industry: "Architecture",
         sources: ["linkedin", "google_maps", "website"],

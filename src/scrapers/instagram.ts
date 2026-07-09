@@ -1,5 +1,5 @@
 /**
- * Instagram Scraper — Phase 1
+ * Instagram Scraper - Phase 1
  * Uses SERP API to find real Instagram business pages.
  */
 

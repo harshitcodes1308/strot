@@ -21,7 +21,7 @@ const FEATURE_CARDS = [
   {
     icon: MagnifyingGlass,
     title: "Universal Lead Discovery",
-    body: "One search. Four sources — LinkedIn, Instagram, Google Maps, company websites. Merged and deduplicated automatically.",
+    body: "One search. Four sources - LinkedIn, Instagram, Google Maps, company websites. Merged and deduplicated automatically.",
   },
   {
     icon: ArrowUpRight,
@@ -31,7 +31,7 @@ const FEATURE_CARDS = [
   {
     icon: SquaresFour,
     title: "Lead Dashboard",
-    body: "Save, tag, organize, and annotate leads in one place. Status tracking, folders, and inline notes — no extra tool.",
+    body: "Save, tag, organize, and annotate leads in one place. Status tracking, folders, and inline notes - no extra tool.",
   },
   {
     icon: Export,
@@ -49,7 +49,7 @@ const SOURCES = [
 
 const STATS = [
   { value: "4",    label: "data sources, one search" },
-  { value: "100%", label: "compliant — no ToS violations" },
+  { value: "100%", label: "compliant - no ToS violations" },
   { value: "< 5s", label: "median search latency" },
 ];
 
@@ -191,7 +191,7 @@ export default function LandingPage() {
             style={{ fontSize: 15, color: "var(--ink-secondary)", lineHeight: 1.65, margin: "0 0 32px", maxWidth: "44ch", fontStyle: "italic" }}
           >
             Strot searches Google Maps, GitHub, Product Hunt, and company websites
-            simultaneously — merging results, removing duplicates, showing you exactly who
+            simultaneously - merging results, removing duplicates, showing you exactly who
             to contact and why.
           </motion.p>
 
@@ -224,7 +224,7 @@ export default function LandingPage() {
           </motion.div>
         </div>
 
-        {/* Right — UI preview */}
+        {/* Right - UI preview */}
         <motion.div
           initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
@@ -292,7 +292,7 @@ export default function LandingPage() {
           Stop tabbing between tools.
         </h2>
         <p style={{ fontSize: 14, color: "var(--ink-secondary)", fontStyle: "italic", margin: "0 auto 28px", maxWidth: "44ch" }}>
-          One workspace. Every lead you need — and everything you need to know about them.
+          One workspace. Every lead you need - and everything you need to know about them.
         </p>
         <Link href="/sign-up" className="btn btn-primary" style={{ fontSize: 14, padding: "11px 24px", gap: 8 }}>
           Get started free <ArrowRight size={14} weight="bold" />

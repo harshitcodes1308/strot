@@ -445,7 +445,7 @@ export default function AnalyticsPage() {
                     </div>
                     {safeLeads.length === 0 ? (
                       <div style={{ color: "var(--ink-muted)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>
-                        No leads yet — <Link href="/dashboard/search" style={{ color: "var(--primary)" }}>discover some leads</Link> to see analytics.
+                        No leads yet - <Link href="/dashboard/search" style={{ color: "var(--primary)" }}>discover some leads</Link> to see analytics.
                       </div>
                     ) : (
                       <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 80 }}>
@@ -678,7 +678,7 @@ export default function AnalyticsPage() {
                                     : "var(--ink-muted)",
                               }}
                             >
-                              {alert.httpStatus ?? "—"}
+                              {alert.httpStatus ?? "-"}
                             </span>
                           </td>
                           <td>
@@ -691,12 +691,12 @@ export default function AnalyticsPage() {
                                     : "var(--ink-secondary)",
                               }}
                             >
-                              {alert.responseTimeMs ? `${alert.responseTimeMs}ms` : "—"}
+                              {alert.responseTimeMs ? `${alert.responseTimeMs}ms` : "-"}
                             </span>
                           </td>
                           <td>
                             <span style={{ fontSize: 12, color: alert.sslValid ? "var(--success)" : "var(--error)" }}>
-                              {alert.sslValid === null ? "—" : alert.sslValid ? "Valid" : "Invalid"}
+                              {alert.sslValid === null ? "-" : alert.sslValid ? "Valid" : "Invalid"}
                             </span>
                           </td>
                           <td>

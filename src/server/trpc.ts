@@ -1,5 +1,5 @@
 /**
- * tRPC server setup — context creation, router factory, and procedure middleware.
+ * tRPC server setup - context creation, router factory, and procedure middleware.
  *
  * Auth strategy:
  *   1. If CLERK_SECRET_KEY is set → use Clerk auth (production)

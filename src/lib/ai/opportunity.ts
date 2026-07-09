@@ -35,7 +35,7 @@ Look for buying signals like: low Google ratings, missing or outdated website, l
       score: 60,
       buyingSignals: signals,
       suggestedServices: ["Web Redesign & Development", "SEO Audit & Optimization"],
-      reasoning: "Fallback score generated — AI analysis could not complete. Manual review recommended.",
+      reasoning: "Fallback score generated - AI analysis could not complete. Manual review recommended.",
     };
   }
 }

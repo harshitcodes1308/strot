@@ -1,6 +1,6 @@
 /**
  * Client Health Monitor
- * Phase 5 — checks website uptime, SSL expiry, and performance changes for saved leads.
+ * Phase 5 - checks website uptime, SSL expiry, and performance changes for saved leads.
  */
 
 export interface HealthCheckResult {
@@ -23,7 +23,7 @@ export interface HealthAlert {
 
 /**
  * Run a full health check for a given domain.
- * Uses native fetch — no external dependencies needed.
+ * Uses native fetch - no external dependencies needed.
  */
 export async function checkDomainHealth(
   leadId: string,
@@ -62,7 +62,7 @@ export async function checkDomainHealth(
       alerts.push({
         type: "slow_response",
         severity: "warning",
-        message: `Site responded in ${responseTimeMs}ms — above 5 second threshold.`,
+        message: `Site responded in ${responseTimeMs}ms - above 5 second threshold.`,
       });
     }
 
@@ -75,7 +75,7 @@ export async function checkDomainHealth(
       });
     }
 
-    // SSL check — look at the response URL for HTTPS
+    // SSL check - look at the response URL for HTTPS
     // In server-side Node fetch, we can't directly inspect the TLS cert expiry without
     // a raw TLS connection. We infer HTTPS from the response URL as a lightweight check.
     const isHttps = response.url.startsWith("https://");
@@ -84,7 +84,7 @@ export async function checkDomainHealth(
       alerts.push({
         type: "ssl_expiry",
         severity: "critical",
-        message: "Site is not served over HTTPS — SSL certificate may be missing or expired.",
+        message: "Site is not served over HTTPS - SSL certificate may be missing or expired.",
       });
     } else {
       // Mark as valid; deep TLS expiry check requires a separate node:tls call

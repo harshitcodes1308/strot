@@ -1,5 +1,5 @@
 /**
- * Client Health Monitor Router — Phase 5
+ * Client Health Monitor Router - Phase 5
  * Checks website uptime, SSL status, and response time for saved leads.
  * Results are persisted in MonitorAlert records for trending/history.
  */
@@ -45,7 +45,7 @@ export const monitorRouter = createTRPCRouter({
 
   /**
    * Run health checks for ALL leads with domains in the workspace.
-   * Returns a summary — suited for a cron/background job trigger.
+   * Returns a summary - suited for a cron/background job trigger.
    */
   runAllChecks: protectedProcedure.mutation(async ({ ctx }) => {
     const leads = await ctx.db.lead.findMany({

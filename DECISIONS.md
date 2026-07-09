@@ -1,4 +1,4 @@
-# DECISIONS.md — Strot Phase 1
+# DECISIONS.md - Strot Phase 1
 
 A running log of implementation decisions, assumptions, and tradeoffs made during Phase 1 build.
 
@@ -28,11 +28,11 @@ A running log of implementation decisions, assumptions, and tradeoffs made durin
 
 **Decision:** tRPC with `@tanstack/react-query`. Package installed, not scaffolded yet.
 
-**Reason:** Same as DB — UI-first for the Phase 1 demo. tRPC router goes up in Phase 1.5.
+**Reason:** Same as DB - UI-first for the Phase 1 demo. tRPC router goes up in Phase 1.5.
 
 ---
 
-## Lead Sources — Phase 1 MVP (Revised)
+## Lead Sources - Phase 1 MVP (Revised)
 
 **Decision:** Custom scrapers via Playwright/Puppeteer behind a unified `LeadSource` interface (`fetch → parse → normalize → dedupe`).
 MVP Sources: LinkedIn, Instagram, Google Maps, Company Websites.
@@ -65,7 +65,7 @@ MVP Sources: LinkedIn, Instagram, Google Maps, Company Websites.
 **Reason:**
 - SF Pro: best-in-class on Apple devices (majority of target users), excellent system font everywhere else. Zero load cost.
 - Kanit: geometric condensed, Coolvetica-adjacent, premium tool aesthetic. Loaded via `next/font/google` for zero layout shift.
-- Subheadings: italic of the same SF Pro stack — humanist italic is the correct premium move per skill guidance (not a separate serif injection).
+- Subheadings: italic of the same SF Pro stack - humanist italic is the correct premium move per skill guidance (not a separate serif injection).
 
 ---
 
@@ -73,9 +73,9 @@ MVP Sources: LinkedIn, Instagram, Google Maps, Company Websites.
 
 **Decision:** Custom CSS variables in OKLCH, no Tailwind component library.
 
-**Reason:** The impeccable skill's guidance is clear — for a product UI of this kind, own the tokens. shadcn/ui is available but not used as default; components are hand-crafted with the design system tokens to avoid the shadcn default look.
+**Reason:** The impeccable skill's guidance is clear - for a product UI of this kind, own the tokens. shadcn/ui is available but not used as default; components are hand-crafted with the design system tokens to avoid the shadcn default look.
 
-**Brand seed:** `oklch(0.55 0.095 180)` — weathered copper patina teal (from palette.mjs seed-160).
+**Brand seed:** `oklch(0.55 0.095 180)` - weathered copper patina teal (from palette.mjs seed-160).
 
 ---
 

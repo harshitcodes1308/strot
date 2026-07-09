@@ -1,5 +1,5 @@
 /**
- * Opportunity Signal Detection — Phase 1
+ * Opportunity Signal Detection - Phase 1
  *
  * Given enrichment data from any combination of sources (LinkedIn, Instagram,
  * Google Maps, Website), computes a list of human-readable opportunity signals.
@@ -36,7 +36,7 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
       signals.push("LinkedIn active, no website analytics");
     }
 
-    // Low post activity — might need content strategy
+    // Low post activity - might need content strategy
     if (li.recentPosts !== undefined && li.recentPosts < 3) {
       signals.push("Low LinkedIn posting activity");
     }
@@ -46,7 +46,7 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
       signals.push("Audience exists, no e-commerce layer");
     }
 
-    // No specialties listed — gaps in brand clarity
+    // No specialties listed - gaps in brand clarity
     if (!li.specialties || li.specialties.length === 0) {
       signals.push("No specialties listed on LinkedIn");
     }
@@ -58,7 +58,7 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
 
     // High engagement but relying on DMs
     if (ig.engagementRate && ig.engagementRate > 0.03 && ig.bio?.toLowerCase().includes("dm")) {
-      signals.push("High engagement — DM-only intake, no booking");
+      signals.push("High engagement - DM-only intake, no booking");
     }
 
     // Significant followers, no storefront
@@ -68,10 +68,10 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
 
     // Using Linktree instead of real site
     if (data.website?.techStack?.includes("Linktree") || data.website?.cms === "Linktree") {
-      signals.push("Selling via Linktree — no owned storefront");
+      signals.push("Selling via Linktree - no owned storefront");
     }
 
-    // High follower count, low posting frequency — stale content
+    // High follower count, low posting frequency - stale content
     if (ig.followers && ig.followers > 2000 && ig.lastPosted) {
       const daysSince = daysBetween(new Date(ig.lastPosted), new Date());
       if (daysSince > 14) {
@@ -81,13 +81,13 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
 
     // Strong engagement rate above category average
     if (ig.engagementRate && ig.engagementRate > 0.05) {
-      signals.push(`${(ig.engagementRate * 100).toFixed(1)}% IG engagement rate — above average`);
+      signals.push(`${(ig.engagementRate * 100).toFixed(1)}% IG engagement rate - above average`);
     }
 
     // No website at all despite Instagram presence
     if (!data.website || !data.website.techStack?.length) {
       if (ig.followers && ig.followers > 1000) {
-        signals.push("No website — Instagram-native business");
+        signals.push("No website - Instagram-native business");
       }
     }
   }
@@ -96,9 +96,9 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
   if (data.google) {
     const g = data.google;
 
-    // High rating, high review count — strong local reputation
+    // High rating, high review count - strong local reputation
     if (g.rating >= 4.7 && g.reviewCount >= 100) {
-      signals.push(`${g.rating}★ with ${g.reviewCount} reviews — local authority`);
+      signals.push(`${g.rating}★ with ${g.reviewCount} reviews - local authority`);
     }
 
     // Unclaimed listing is a clear gap
@@ -126,7 +126,7 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
       signals.push(`Website performance score: ${w.performanceScore}/100`);
     }
 
-    // No analytics — flying blind
+    // No analytics - flying blind
     if (!w.hasAnalytics) {
       signals.push("No analytics detected on website");
     }
@@ -136,19 +136,19 @@ export function computeOpportunitySignals(data: SignalInput): string[] {
       signals.push(`E-commerce site with ${w.mobileScore} mobile score`);
     }
 
-    // No SSL — rare but still happens with small businesses
+    // No SSL - rare but still happens with small businesses
     if (w.hasSSL === false) {
-      signals.push("No SSL certificate — HTTP only");
+      signals.push("No SSL certificate - HTTP only");
     }
 
     // Running a low-end CMS with a premium brand
     if (w.cms === "Wix" || w.cms === "Weebly") {
-      signals.push(`Brand on ${w.cms} — potential migration opportunity`);
+      signals.push(`Brand on ${w.cms} - potential migration opportunity`);
     }
 
-    // No CMS at all — hard to update content
+    // No CMS at all - hard to update content
     if (!w.hasCMS && !w.hasEcommerce) {
-      signals.push("Static site — no CMS, hard to update");
+      signals.push("Static site - no CMS, hard to update");
     }
   }
 

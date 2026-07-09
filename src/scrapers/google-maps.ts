@@ -1,9 +1,9 @@
 /**
- * Google Maps Scraper — Phase 1
+ * Google Maps Scraper - Phase 1
  *
  * Primary data source for local/physical businesses.
  * Scrapes Google Maps search results via:
- *   - Google Places API (preferred where budget allows — compliant, fast)
+ *   - Google Places API (preferred where budget allows - compliant, fast)
  *   - Playwright scraper of maps.google.com as fallback
  */
 
@@ -58,7 +58,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     return this._fetchViaScraper(params, cfg, limit);
   }
 
-  /** Google Places API v1 (New) — Text Search */
+  /** Google Places API v1 (New) - Text Search */
   private async _fetchViaAPI(
     params: ScraperParams,
     apiKey: string,
@@ -197,7 +197,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       return {
         name:        place.displayName.text,
         domain,
-        description: `${humanizeCategory(place.primaryType ?? "")} — ${place.formattedAddress}. ${place.rating}★ (${place.userRatingCount} reviews).`,
+        description: `${humanizeCategory(place.primaryType ?? "")} - ${place.formattedAddress}. ${place.rating}★ (${place.userRatingCount} reviews).`,
         location:    extractCity(place.formattedAddress ?? ""),
         industry:    humanizeCategory(place.primaryType ?? ""),
         sourceData:  { google, photoUrls },
@@ -224,7 +224,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     return { 
       name, 
       domain, 
-      description: `${category} — ${address}. ${rating}★ (${reviewCount} reviews).`, 
+      description: `${category} - ${address}. ${rating}★ (${reviewCount} reviews).`, 
       location: extractCity(address), 
       industry: category, 
       sourceData: { google } 

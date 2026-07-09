@@ -82,7 +82,7 @@ Based on this data, generate 3-6 proactive discovery recommendations. Focus on n
           niche: "Local service businesses with no online booking",
           searchQuery: "local service business",
           location: "Your city",
-          reasoning: "High density of businesses without modern booking flows — strong conversion opportunity.",
+          reasoning: "High density of businesses without modern booking flows - strong conversion opportunity.",
           estimatedOpportunityLevel: "high",
           buyingSignalsToConfigure: ["stale_website", "no_ecommerce", "poor_reviews"],
         },

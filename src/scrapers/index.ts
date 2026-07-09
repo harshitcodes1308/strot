@@ -1,21 +1,21 @@
 /**
- * Scraper index — registers all Phase 1 + Phase 5 sources with the orchestrator.
+ * Scraper index - registers all Phase 1 + Phase 5 sources with the orchestrator.
  *
  * Phase 1 (live scrapers): LinkedIn, Instagram, Google Maps, Company Websites
  * Phase 5 (live where API available, documented stubs otherwise):
- *   - GitHub (GitHub Search API — works unauthenticated, enhanced with GITHUB_TOKEN)
- *   - Product Hunt (GraphQL API — requires PRODUCT_HUNT_TOKEN)
- *   - Reddit (public JSON API — no auth needed)
- *   - Job Boards (Hacker News Algolia API — no auth needed)
- *   - Crunchbase (requires CRUNCHBASE_API_KEY — manual/beta)
- *   - Clutch (manual/beta — Cloudflare blocks all automation)
- *   - Behance (manual/beta — Adobe auth required)
- *   - Dribbble (manual/beta — requires DRIBBBLE_ACCESS_TOKEN + enterprise plan)
- *   - GoodFirms (manual/beta — Cloudflare blocks all automation)
- *   - JustDial (manual/beta — Indian phone OTP required)
- *   - IndiaMART (manual/beta — requires INDIAMART_API_KEY)
- *   - Facebook (manual/beta — Meta blocks all automation)
- *   - Twitter/X (manual/beta — requires X_BEARER_TOKEN paid plan)
+ *   - GitHub (GitHub Search API - works unauthenticated, enhanced with GITHUB_TOKEN)
+ *   - Product Hunt (GraphQL API - requires PRODUCT_HUNT_TOKEN)
+ *   - Reddit (public JSON API - no auth needed)
+ *   - Job Boards (Hacker News Algolia API - no auth needed)
+ *   - Crunchbase (requires CRUNCHBASE_API_KEY - manual/beta)
+ *   - Clutch (manual/beta - Cloudflare blocks all automation)
+ *   - Behance (manual/beta - Adobe auth required)
+ *   - Dribbble (manual/beta - requires DRIBBBLE_ACCESS_TOKEN + enterprise plan)
+ *   - GoodFirms (manual/beta - Cloudflare blocks all automation)
+ *   - JustDial (manual/beta - Indian phone OTP required)
+ *   - IndiaMART (manual/beta - requires INDIAMART_API_KEY)
+ *   - Facebook (manual/beta - Meta blocks all automation)
+ *   - Twitter/X (manual/beta - requires X_BEARER_TOKEN paid plan)
  *
  * To add a new source:
  *   1. Create src/scrapers/{source}.ts implementing LeadSourceScraper
@@ -48,7 +48,7 @@ import { WebsiteScraper }     from "./website";
 // and socialPostsScraper uses id 'twitter_x'. Registering them would overwrite the real
 // WebsiteScraper and TwitterXScraper in the orchestrator due to ID conflicts.
 
-// Phase 5 scrapers — live
+// Phase 5 scrapers - live
 import { GithubScraper }      from "./github";
 import { ProductHuntScraper } from "./product-hunt";
 import { RedditScraper }      from "./reddit";
@@ -63,13 +63,13 @@ orchestrator.register(new GoogleMapsScraper());
 orchestrator.register(new WebsiteScraper());
 
 
-// Register Phase 5 — live
+// Register Phase 5 - live
 orchestrator.register(new GithubScraper());
 orchestrator.register(new ProductHuntScraper());
 orchestrator.register(new RedditScraper());
 orchestrator.register(new JobBoardsScraper());
 
-// Register Phase 5 — stubs (return empty; log manual/beta notice)
+// Register Phase 5 - stubs (return empty; log manual/beta notice)
 orchestrator.register(new StubScraper("crunchbase"));
 orchestrator.register(new StubScraper("clutch"));
 orchestrator.register(new StubScraper("behance"));

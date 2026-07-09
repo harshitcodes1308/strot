@@ -1,5 +1,5 @@
 /**
- * Smart Lead Discovery Router — Phase 5
+ * Smart Lead Discovery Router - Phase 5
  * Generates AI-powered proactive lead recommendations based on existing leads + agency profile.
  * Results are cached per workspace for 24 hours to avoid burning OpenAI tokens on every page load.
  */

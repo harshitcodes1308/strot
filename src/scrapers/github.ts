@@ -1,9 +1,9 @@
 /**
- * GitHub Scraper — Phase 5
+ * GitHub Scraper - Phase 5
  * Uses the official GitHub Search API (no auth needed for basic usage; 60 req/h unauthenticated).
  * With GITHUB_TOKEN: 5,000 req/h.
  *
- * Searches for organisations/users matching the query — surfaces technology companies and OSS teams.
+ * Searches for organisations/users matching the query - surfaces technology companies and OSS teams.
  */
 
 import { LeadSourceScraper, BrowserConfig, computeCompleteness } from "./base";
@@ -68,7 +68,7 @@ export class GithubScraper implements LeadSourceScraper {
       industry: "Technology",
       sources: [this.id],
       opportunitySignals: org.public_repos
-        ? [`${org.public_repos} public repos — active open source presence`]
+        ? [`${org.public_repos} public repos - active open source presence`]
         : [],
       sourceData: {
         github: org,

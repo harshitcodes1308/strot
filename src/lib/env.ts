@@ -1,5 +1,5 @@
 /**
- * Environment variable validation — loaded once at app startup.
+ * Environment variable validation - loaded once at app startup.
  * Throws with all missing variables listed if validation fails.
  * @module
  */
@@ -13,7 +13,7 @@ const envSchema = z.object({
   SERP_API_KEY: z.string().min(1, "SERP_API_KEY is required"),
   GOOGLE_PLACES_API_KEY: z.string().min(1, "GOOGLE_PLACES_API_KEY is required"),
 
-  // Clerk (optional — dev mode if absent)
+  // Clerk (optional - dev mode if absent)
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
 
@@ -46,7 +46,7 @@ function validateEnv(): Env {
   // Warn if Clerk isn't configured
   if (!result.data.CLERK_SECRET_KEY) {
     console.warn(
-      "[Strot] ⚠ CLERK_SECRET_KEY not set — running in dev-mode auth (simulated users)"
+      "[Strot] ⚠ CLERK_SECRET_KEY not set - running in dev-mode auth (simulated users)"
     );
   }
 

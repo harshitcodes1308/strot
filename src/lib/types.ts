@@ -1,4 +1,4 @@
-// Lead types for Phase 1 — updated per PRD revision
+// Lead types for Phase 1 - updated per PRD revision
 // Sources: LinkedIn, Instagram, Google Maps, Company Websites (scraper-based)
 // GitHub, Product Hunt, etc. → Phase 5 expansion
 
@@ -22,7 +22,7 @@ export type LeadSource =
   | "facebook"
   | "twitter_x";
 
-// Phase 5 sources (not active in Phase 1 UI — kept for backward compat)
+// Phase 5 sources (not active in Phase 1 UI - kept for backward compat)
 export type Phase5Source = "github" | "product_hunt" | "facebook" | "twitter_x" | "reddit" | "clutch" | "goodfirms" | "crunchbase" | "behance" | "dribbble" | "justdial" | "indiamart" | "job_boards";
 
 export type AnySource = LeadSource;

@@ -142,14 +142,14 @@ describe("areDuplicates", () => {
   });
 
   it("BUG: empty domains are treated as matching (both normalize to empty string)", () => {
-    // This is a known bug — empty/missing domains should NOT match as duplicates
+    // This is a known bug - empty/missing domains should NOT match as duplicates
     // Documented for Phase 2 fix
     const a = makeResult({ name: "Apple Inc", domain: "" });
     const b = makeResult({ name: "Zephyr Labs", domain: "" });
     expect(areDuplicates(a, b)).toBe(true); // BUG: should be false
   });
 
-  it("NOTE: names sharing a common prefix (e.g. 'Company X' vs 'Company Z') may be treated as duplicates due to Jaro-Winkler prefix weighting — known limitation", () => {
+  it("NOTE: names sharing a common prefix (e.g. 'Company X' vs 'Company Z') may be treated as duplicates due to Jaro-Winkler prefix weighting - known limitation", () => {
     const a = makeResult({ name: "Company Alpha", domain: "" });
     const b = makeResult({ name: "Company Zeta", domain: "" });
     // This returns true because Jaro-Winkler weights common prefixes heavily

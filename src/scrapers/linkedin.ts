@@ -1,5 +1,5 @@
 /**
- * LinkedIn Scraper — Phase 1
+ * LinkedIn Scraper - Phase 1
  * Uses SERP API to find real LinkedIn company pages.
  */
 

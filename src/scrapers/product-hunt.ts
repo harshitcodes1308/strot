@@ -1,5 +1,5 @@
 /**
- * Product Hunt Scraper — Phase 5
+ * Product Hunt Scraper - Phase 5
  * Uses the Product Hunt GraphQL API.
  *
  * Requires PRODUCT_HUNT_TOKEN env var. Gracefully skips if not set.
@@ -21,7 +21,7 @@ export class ProductHuntScraper implements LeadSourceScraper {
   async fetch(params: ScraperParams, _config?: Partial<BrowserConfig>): Promise<RawLeadData[]> {
     const token = process.env.PRODUCT_HUNT_TOKEN;
     if (!token) {
-      console.info("[ProductHuntScraper] PRODUCT_HUNT_TOKEN not set — source skipped.");
+      console.info("[ProductHuntScraper] PRODUCT_HUNT_TOKEN not set - source skipped.");
       return [];
     }
 
@@ -72,7 +72,7 @@ export class ProductHuntScraper implements LeadSourceScraper {
       description: post.tagline as string ?? undefined,
       industry,
       sources: [this.id],
-      opportunitySignals: ["Recently launched on Product Hunt — potential early-stage growth opportunity"],
+      opportunitySignals: ["Recently launched on Product Hunt - potential early-stage growth opportunity"],
       sourceData: { product_hunt: post },
     };
   }

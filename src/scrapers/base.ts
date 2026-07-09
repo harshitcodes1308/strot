@@ -1,5 +1,5 @@
 /**
- * Strot Scraper Engine — Base Interface
+ * Strot Scraper Engine - Base Interface
  *
  * Every Phase 1 source (LinkedIn, Instagram, Google Maps, Company Websites)
  * and every Phase 5 expansion source implements this interface.
@@ -55,7 +55,7 @@ export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
 // ─── Core LeadSource interface ────────────────────────────────────────────────
 
 export interface LeadSourceScraper {
-  /** Unique identifier — must match the LeadSource type */
+  /** Unique identifier - must match the LeadSource type */
   readonly id: LeadSource;
 
   /** Human-readable label shown in the UI */
@@ -65,21 +65,21 @@ export interface LeadSourceScraper {
   readonly selectors: Record<string, string>;
 
   /**
-   * STEP 1 — fetch: Run the scraper, return raw HTML/JSON blobs
+   * STEP 1 - fetch: Run the scraper, return raw HTML/JSON blobs
    * Responsible for: browser launch, navigation, pagination, rate limiting, retries.
-   * Must NOT throw on partial failures — return what it got, log what failed.
+   * Must NOT throw on partial failures - return what it got, log what failed.
    */
   fetch(params: ScraperParams, config?: Partial<BrowserConfig>): Promise<RawLeadData[]>;
 
   /**
-   * STEP 2 — parse: Extract structured fields from the raw blob
-   * Pure function — no browser, no I/O. Given a raw HTML string or JSON,
+   * STEP 2 - parse: Extract structured fields from the raw blob
+   * Pure function - no browser, no I/O. Given a raw HTML string or JSON,
    * return a NormalizedLead. Throw ParseError on unrecoverable extraction failure.
    */
   parse(raw: RawLeadData): NormalizedLead;
 
   /**
-   * STEP 3 — normalize: Map NormalizedLead → SearchResult
+   * STEP 3 - normalize: Map NormalizedLead → SearchResult
    * Pure function. Fills in defaults, computes opportunity signals,
    * and produces a SearchResult ready for the deduplication pipeline.
    */
@@ -89,7 +89,7 @@ export interface LeadSourceScraper {
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
 /**
- * Jaro-Winkler similarity — used for name and domain matching.
+ * Jaro-Winkler similarity - used for name and domain matching.
  * Threshold ≥ 0.88 considered a duplicate in Phase 1.
  */
 export function jaroWinkler(s1: string, t1: string): number {
@@ -339,5 +339,5 @@ export class ScraperOrchestrator {
   }
 }
 
-// Global singleton orchestrator — register scrapers at app startup
+// Global singleton orchestrator - register scrapers at app startup
 export const orchestrator = new ScraperOrchestrator();

@@ -1,5 +1,5 @@
 /**
- * Job Boards Scraper — Phase 5
+ * Job Boards Scraper - Phase 5
  * Searches Hacker News "Who's Hiring" via Algolia HN Search API (public, no auth).
  * Hiring activity = strong buying signal for digital services.
  */
@@ -66,12 +66,12 @@ export class JobBoardsScraper implements LeadSourceScraper {
     return {
       name: item.parsedName as string,
       location: (item.parsedLocation as string | undefined) ?? undefined,
-      description: `Actively hiring — seen on Hacker News "Who's Hiring"`,
+      description: `Actively hiring - seen on Hacker News "Who's Hiring"`,
       industry: "Technology",
       sources: [this.id],
       opportunitySignals: [
-        "Actively hiring on Hacker News — strong growth signal",
-        "Engineering-focused team — potential for tech/design outsourcing",
+        "Actively hiring on Hacker News - strong growth signal",
+        "Engineering-focused team - potential for tech/design outsourcing",
       ],
       sourceData: { job_boards: item },
     };

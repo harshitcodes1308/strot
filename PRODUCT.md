@@ -10,11 +10,11 @@ Freelancers and boutique agency owners who prospect for clients. They are digita
 
 ## Product Purpose
 
-Strot is an AI-powered client intelligence platform. It collapses the entire lead-discovery workflow — search, research, opportunity-detection, organization — into one workspace. The defining feature: one search query pulls merged, deduplicated results from multiple sources simultaneously. Phase 1 ships the core loop: search → discover leads → save & organize → export.
+Strot is an AI-powered client intelligence platform. It collapses the entire lead-discovery workflow - search, research, opportunity-detection, organization - into one workspace. The defining feature: one search query pulls merged, deduplicated results from multiple sources simultaneously. Phase 1 ships the core loop: search → discover leads → save & organize → export.
 
 ## Brand Personality
 
-Precise. Unfussy. Decisive. The tool should feel like a well-calibrated instrument — not a feature-tour, not a dashboard celebrating itself. Emotional goal: confidence that you are seeing more signal than everyone else.
+Precise. Unfussy. Decisive. The tool should feel like a well-calibrated instrument - not a feature-tour, not a dashboard celebrating itself. Emotional goal: confidence that you are seeing more signal than everyone else.
 
 ## Anti-references
 
@@ -26,11 +26,11 @@ Precise. Unfussy. Decisive. The tool should feel like a well-calibrated instrume
 
 ## Design Principles
 
-1. **Tool disappears into the task.** Every chrome, transition, and label exists to surface information or confirm an action — never to decorate.
+1. **Tool disappears into the task.** Every chrome, transition, and label exists to surface information or confirm an action - never to decorate.
 2. **Information density is a feature, not a problem.** Freelancers are researchers. The UI earns trust by showing more, not hiding it behind progressive disclosure.
 3. **Precision over warmth.** Rounded radii, playful gradients, and celebratory empty states all feel wrong. Tighter, cooler, sharper.
 4. **Motion confirms, never performs.** State changes animate to explain; page loads do not choreograph.
-5. **Everything is one click shallower than you'd expect.** Lead saving, note adding, status changing — all inline. No modal-first design.
+5. **Everything is one click shallower than you'd expect.** Lead saving, note adding, status changing - all inline. No modal-first design.
 
 ## Accessibility & Inclusion
 

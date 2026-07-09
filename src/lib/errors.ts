@@ -6,7 +6,7 @@
 
 import { TRPCError } from "@trpc/server";
 
-/** 404 — Resource not found */
+/** 404 - Resource not found */
 export function notFound(resource: string): TRPCError {
   return new TRPCError({
     code: "NOT_FOUND",
@@ -14,7 +14,7 @@ export function notFound(resource: string): TRPCError {
   });
 }
 
-/** 401 — Authentication required */
+/** 401 - Authentication required */
 export function unauthorized(message = "Authentication required"): TRPCError {
   return new TRPCError({
     code: "UNAUTHORIZED",
@@ -22,7 +22,7 @@ export function unauthorized(message = "Authentication required"): TRPCError {
   });
 }
 
-/** 403 — Insufficient permissions */
+/** 403 - Insufficient permissions */
 export function forbidden(message = "Insufficient permissions"): TRPCError {
   return new TRPCError({
     code: "FORBIDDEN",
@@ -30,7 +30,7 @@ export function forbidden(message = "Insufficient permissions"): TRPCError {
   });
 }
 
-/** 400 — Bad request / validation error */
+/** 400 - Bad request / validation error */
 export function badRequest(message: string): TRPCError {
   return new TRPCError({
     code: "BAD_REQUEST",
@@ -38,7 +38,7 @@ export function badRequest(message: string): TRPCError {
   });
 }
 
-/** 429 — Rate limit exceeded */
+/** 429 - Rate limit exceeded */
 export function rateLimit(): TRPCError {
   return new TRPCError({
     code: "TOO_MANY_REQUESTS",
@@ -46,7 +46,7 @@ export function rateLimit(): TRPCError {
   });
 }
 
-/** 500 — Internal server error */
+/** 500 - Internal server error */
 export function internal(message: string): TRPCError {
   return new TRPCError({
     code: "INTERNAL_SERVER_ERROR",

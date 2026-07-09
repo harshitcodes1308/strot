@@ -362,7 +362,7 @@ export default function AgencyProfilePage() {
               {caseStudies.map((c, idx) => (
                 <div key={idx} className="flex justify-between items-start bg-[var(--surface-raised)] rounded p-2.5 text-xs">
                   <div>
-                    <div className="font-semibold text-white">{c.client} — {c.title}</div>
+                    <div className="font-semibold text-white">{c.client} - {c.title}</div>
                     <div className="opacity-60 text-[10px] mt-0.5">Results: {c.results}</div>
                   </div>
                   <button type="button" onClick={() => removeCaseStudy(idx)} className="text-white/40 hover:text-[var(--error)]"><Trash size={12} /></button>

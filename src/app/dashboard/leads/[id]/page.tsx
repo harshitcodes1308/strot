@@ -374,7 +374,7 @@ export default function LeadDetailPage() {
               <h3 className="text-xs font-bold uppercase tracking-wider opacity-70">Agency Match Score</h3>
               <div className="relative inline-flex items-center justify-center">
                 <div className="text-5xl font-black font-display text-[var(--primary)]">
-                  {leadMatch?.score ?? "—"}
+                  {leadMatch?.score ?? "-"}
                 </div>
               </div>
               <p className="text-xs opacity-75 max-w-xs mx-auto leading-relaxed">

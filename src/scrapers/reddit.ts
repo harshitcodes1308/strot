@@ -1,5 +1,5 @@
 /**
- * Reddit Scraper — Phase 5
+ * Reddit Scraper - Phase 5
  * Uses Reddit's public JSON API (no key needed) to search subreddits for business niches.
  * Strong for surfacing industry communities that signal high-density prospecting areas.
  */

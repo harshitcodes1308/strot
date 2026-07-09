@@ -37,10 +37,10 @@ If data is missing, make reasonable educated inferences based on the industry an
       founders: [],
       seo: {
         strengths: ["Domain is registered"],
-        weaknesses: ["AI research unavailable — manual review recommended"],
+        weaknesses: ["AI research unavailable - manual review recommended"],
       },
       competitors: [],
-      recentActivity: "Unable to retrieve recent activity — AI analysis failed.",
+      recentActivity: "Unable to retrieve recent activity - AI analysis failed.",
       redFlags: ["AI analysis could not be completed; manual verification needed"],
     };
   }

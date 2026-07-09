@@ -21,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-// Phase 1 sources — LinkedIn, Instagram, Google Maps, Company Websites
+// Phase 1 sources - LinkedIn, Instagram, Google Maps, Company Websites
 const SOURCE_OPTS: { value: LeadSource; label: string; cls: string; icon: typeof MapPin; description: string }[] = [
   { value: "linkedin",    label: "LinkedIn",        cls: "source-linkedin",  icon: LinkedinLogo, description: "Company pages, employee count, industry"   },
   { value: "instagram",   label: "Instagram",       cls: "source-instagram", icon: InstagramLogo, description: "Follower count, engagement, bio, handle"  },
@@ -242,7 +242,7 @@ export default function SearchPage() {
       <div style={{ height: 52, borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", padding: "0 20px", gap: 12, flexShrink: 0, background: "var(--surface)" }}>
         <h1 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: 0 }}>Discover</h1>
         <span style={{ fontSize: 12, color: "var(--ink-muted)", fontStyle: "italic" }}>
-          Universal Lead Discovery — {enabledCount} source{enabledCount !== 1 ? "s" : ""} active
+          Universal Lead Discovery - {enabledCount} source{enabledCount !== 1 ? "s" : ""} active
         </span>
         <div style={{ flex: 1 }} />
         {savedCount > 0 && (
@@ -331,7 +331,7 @@ export default function SearchPage() {
             <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
               <CircleNotch size={13} color="var(--primary)" style={{ animation: "spin 0.8s linear infinite" }} />
               <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
-                Running scrapers across {enabledCount} source{enabledCount !== 1 ? "s" : ""} — merging results...
+                Running scrapers across {enabledCount} source{enabledCount !== 1 ? "s" : ""} - merging results...
               </span>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
@@ -363,7 +363,7 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* Empty — not searched */}
+        {/* Empty - not searched */}
         {!loading && !searched && (
           <div className="empty-state">
             <div style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "var(--primary-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -374,7 +374,7 @@ export default function SearchPage() {
                 Search across all four sources simultaneously
               </div>
               <em style={{ fontSize: 13, color: "var(--ink-muted)", maxWidth: "38ch", textAlign: "center", display: "block" }}>
-                LinkedIn · Instagram · Google Maps · Company Websites — merged and deduplicated.
+                LinkedIn · Instagram · Google Maps · Company Websites - merged and deduplicated.
               </em>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>

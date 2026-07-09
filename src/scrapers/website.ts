@@ -1,5 +1,5 @@
 /**
- * Website Scraper — Phase 1
+ * Website Scraper - Phase 1
  */
 
 import {
@@ -84,7 +84,7 @@ export class WebsiteScraper implements LeadSourceScraper {
       return [await this._crawlUrl(url, cfg)];
     }
 
-    console.log(`[Website] fetch called with non-domain query "${params.query}", no SERP API available — returning empty.`);
+    console.log(`[Website] fetch called with non-domain query "${params.query}", no SERP API available - returning empty.`);
     return [];
   }
 

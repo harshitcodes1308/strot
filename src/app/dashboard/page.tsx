@@ -543,7 +543,7 @@ export default function AllLeadsPage() {
                           <span>{lead.assignedTo.name}</span>
                         </div>
                       ) : (
-                        <span className="opacity-40 font-mono">—</span>
+                        <span className="opacity-40 font-mono">-</span>
                       )}
                     </td>
 
@@ -552,7 +552,7 @@ export default function AllLeadsPage() {
 
                     {/* Industry */}
                     <td style={{ color: "var(--ink-secondary)", fontSize: 12 }}>
-                      {lead.industry ?? "—"}
+                      {lead.industry ?? "-"}
                     </td>
 
                     {/* Saved */}
