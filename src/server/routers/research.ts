@@ -2,7 +2,6 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { generateCompanyPostmortem } from "../../lib/ai/postmortem";
 import { generateOpportunityScore } from "../../lib/ai/opportunity";
-import { db } from "../../lib/db";
 import { NormalizedLead } from "../../lib/types";
 
 export const researchRouter = createTRPCRouter({
@@ -10,7 +9,7 @@ export const researchRouter = createTRPCRouter({
     .input(z.object({ leadId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // 1. Fetch the lead
-      const lead = await db.lead.findUnique({
+      const lead = await ctx.db.lead.findUnique({
         where: { id: input.leadId, workspaceId: ctx.workspaceId },
       });
 
@@ -39,7 +38,7 @@ export const researchRouter = createTRPCRouter({
       const opportunityData = await generateOpportunityScore(normalizedForAi, postmortem);
 
       // 4. Update the DB
-      const updatedLead = await db.lead.update({
+      const updatedLead = await ctx.db.lead.update({
         where: { id: lead.id },
         data: {
           postmortem: postmortem as any,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { orchestrator } from "@/scrapers/index";
 import { SearchResult } from "@/lib/types";
@@ -13,30 +14,83 @@ export const leadsRouter = createTRPCRouter({
       industry: z.string().optional(),
       sources: z.array(z.string()),
     }))
-    .mutation(async ({ input }) => {
-      // In a production environment this would be queued or async.
-      // For MVP we just run it inline.
-      // Add a timeout of 15 seconds to prevent hanging
-      const timeoutPromise = new Promise<SearchResult[]>((_, reject) => 
-        setTimeout(() => reject(new Error("Search timed out after 15 seconds")), 15000)
-      );
-
+    .mutation(async ({ ctx, input }) => {
       try {
-        const results = await Promise.race([
-          orchestrator.search({
+        const runIds = await orchestrator.search(
+          {
             query: input.query,
             location: input.location,
             industry: input.industry,
-          }, input.sources as any),
-          timeoutPromise
-        ]);
+          },
+          input.sources as any,
+          { workspaceId: ctx.workspaceId, userId: ctx.userId }
+        );
         
-        // Limit results to 20 for MVP to keep UI responsive
-        return results.slice(0, 20);
-      } catch (error) {
-        console.error("Scraper orchestrator failed:", error);
-        throw new Error("Failed to complete search. Please try again or with fewer sources.");
+        return runIds;
+      } catch (error: any) {
+        console.error("Scraper orchestrator failed to enqueue:", error);
+        // Provide a clearer error message for local development issues
+        const isLocalDevError = error.message?.includes("Event key not found") || error.message?.includes("ECONNREFUSED");
+        throw new Error(isLocalDevError 
+          ? "Background worker failed to start. Please restart your dev server (npm run dev) to ensure the Inngest local server is running."
+          : "Failed to start search. Please try again.");
       }
+    }),
+
+  // Phase 2: Polling for background scraper status
+  getScraperStatus: protectedProcedure
+    .input(z.object({ runIds: z.array(z.string()) }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.scraperRun.findMany({
+        where: {
+          id: { in: input.runIds },
+          workspaceId: ctx.workspaceId,
+        },
+      });
+    }),
+
+  // Phase 2: Fetch and deduplicate results from completed runs
+  getScraperResults: protectedProcedure
+    .input(z.object({ runIds: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      const rawResults = await ctx.db.rawScraperResult.findMany({
+        where: {
+          scraperRunId: { in: input.runIds },
+          scraperRun: { workspaceId: ctx.workspaceId },
+        },
+      });
+
+      // Parse them back into SearchResult objects
+      const parsedResults: SearchResult[] = [];
+      for (const result of rawResults) {
+        const scraper = orchestrator.getScraper(result.source as any);
+        if (scraper) {
+          const normalized = scraper.parse(result.rawData as any);
+          parsedResults.push(scraper.normalize(normalized, scraper.id));
+        }
+      }
+
+      const { deduplicateResults } = await import("@/scrapers/base");
+      const { isBlacklisted } = await import("@/scrapers/website");
+      
+      const deduplicated = deduplicateResults(parsedResults);
+      return deduplicated.filter(lead => {
+        // 1. Blacklist check
+        if (lead.domain && isBlacklisted(lead.domain)) return false;
+        
+        // 2. Strict Quality Control (The Waterfall Criteria)
+        const hasGBP = !!lead.google?.placeId || !!lead.google?.rating;
+        const hasPhone = lead.phones && lead.phones.length > 0;
+        const hasEmail = lead.emails && lead.emails.length > 0;
+        const hasSocial = !!(lead.socialProfiles?.instagram || lead.socialProfiles?.linkedin);
+        
+        // The user wants leads for ANY industry, but previously asked for strict Phone & Email.
+        // We relax this to require GBP AND (Phone OR Email OR Social) so that gyms and plumbers don't return 0 results.
+        if (!hasGBP) return false;
+        if (!hasPhone && !hasEmail && !hasSocial) return false;
+
+        return true;
+      });
     }),
 
   listSaved: protectedProcedure.query(async ({ ctx }) => {
@@ -76,6 +130,8 @@ export const leadsRouter = createTRPCRouter({
       hasWebsite: z.boolean(),
       isRunningAds: z.boolean(),
       dataCompleteness: z.number(),
+      photos: z.array(z.string()).optional(),
+      painPoints: z.array(z.string()).optional(),
       
       opportunitySignals: z.array(z.string()),
       linkedin: z.any().optional(),
@@ -84,7 +140,7 @@ export const leadsRouter = createTRPCRouter({
       website: z.any().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.lead.create({
+      const lead = await ctx.db.lead.create({
         data: {
           workspaceId: ctx.workspaceId,
           name: input.name,
@@ -111,12 +167,25 @@ export const leadsRouter = createTRPCRouter({
           isRunningAds: input.isRunningAds,
           dataCompleteness: input.dataCompleteness,
           opportunitySignals: input.opportunitySignals,
+          photos: input.photos ?? [],
+          painPoints: input.painPoints ?? [],
           linkedin: input.linkedin ?? undefined,
           instagram: input.instagram ?? undefined,
           google: input.google ?? undefined,
           website: input.website ?? undefined,
         },
       });
+
+      // Phase 3: Trigger Contact Enrichment in the background
+      const { inngest } = await import("@/inngest/client");
+      await inngest.send({
+        name: "lead/enrich.requested",
+        data: {
+          leadId: lead.id,
+        },
+      });
+
+      return lead;
     }),
     
   get: protectedProcedure
@@ -185,6 +254,12 @@ export const leadsRouter = createTRPCRouter({
   getComments: protectedProcedure
     .input(z.object({ leadId: z.string() }))
     .query(async ({ ctx, input }) => {
+      // Verify lead belongs to this workspace
+      const lead = await ctx.db.lead.findFirst({
+        where: { id: input.leadId, workspaceId: ctx.workspaceId },
+      });
+      if (!lead) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found in this workspace" });
+
       return ctx.db.comment.findMany({
         where: { leadId: input.leadId },
         include: { user: true },
@@ -213,7 +288,7 @@ export const leadsRouter = createTRPCRouter({
     }),
 
   updateStatus: protectedProcedure
-    .input(z.object({ id: z.string(), status: z.string() }))
+    .input(z.object({ id: z.string(), status: z.enum(["new", "active", "warm", "cold", "closed"]) }))
     .mutation(async ({ ctx, input }) => {
       const updated = await ctx.db.lead.update({
         where: { id: input.id, workspaceId: ctx.workspaceId },

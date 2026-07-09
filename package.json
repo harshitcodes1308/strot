@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"npx --yes inngest-cli@latest dev -u http://127.0.0.1:3000/api/inngest\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
+    "concurrently": "^9.1.2",
     "@ai-sdk/openai": "^4.0.8",
     "@clerk/nextjs": "^7.5.13",
     "@neondatabase/serverless": "^1.1.0",
@@ -24,6 +28,7 @@
     "ai": "^7.0.16",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
+    "inngest": "^4.11.0",
     "motion": "^12.42.2",
     "next": "16.2.10",
     "pg": "^8.22.0",
@@ -45,6 +50,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

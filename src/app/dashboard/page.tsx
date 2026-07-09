@@ -17,7 +17,7 @@ import {
   User
 } from "@phosphor-icons/react";
 import { trpc } from "@/lib/trpc";
-import { downloadCSV } from "@/lib/mock-data";
+import { downloadCSV } from "@/lib/export";
 import { LeadStatus, LeadSource } from "@/lib/types";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -158,7 +158,7 @@ export default function AllLeadsPage() {
     downloadCSV(toExport as any);
   }, [leads, filtered, selectedIds]);
 
-  const updateStatus = useCallback((id: string, status: string) => {
+  const updateStatus = useCallback((id: string, status: "new" | "active" | "warm" | "cold" | "closed") => {
     updateStatusMutation.mutate({ id, status });
   }, [updateStatusMutation]);
 
@@ -517,7 +517,7 @@ export default function AllLeadsPage() {
                     <td>
                       <select
                         value={lead.status}
-                        onChange={e => updateStatus(lead.id, e.target.value)}
+                        onChange={e => updateStatus(lead.id, e.target.value as "new" | "active" | "warm" | "cold" | "closed")}
                         style={{
                           background: "transparent",
                           border: "none",

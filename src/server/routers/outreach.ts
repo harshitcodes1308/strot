@@ -2,7 +2,6 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { generateOutreachDraft, OutreachFormat } from "../../lib/ai/outreach";
 import { generateMeetingBrief } from "../../lib/ai/meeting";
-import { db } from "../../lib/db";
 import { NormalizedLead } from "../../lib/types";
 import { PostmortemData } from "../../lib/ai/postmortem";
 
@@ -10,7 +9,7 @@ export const outreachRouter = createTRPCRouter({
   generateDraft: protectedProcedure
     .input(z.object({ leadId: z.string(), format: z.enum(["email", "linkedin", "instagram"]) }))
     .mutation(async ({ ctx, input }) => {
-      const lead = await db.lead.findUnique({
+      const lead = await ctx.db.lead.findUnique({
         where: { id: input.leadId, workspaceId: ctx.workspaceId },
       });
       if (!lead) throw new Error("Lead not found");
@@ -33,7 +32,7 @@ export const outreachRouter = createTRPCRouter({
   generateMeetingBrief: protectedProcedure
     .input(z.object({ leadId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const lead = await db.lead.findUnique({
+      const lead = await ctx.db.lead.findUnique({
         where: { id: input.leadId, workspaceId: ctx.workspaceId },
       });
       if (!lead) throw new Error("Lead not found");

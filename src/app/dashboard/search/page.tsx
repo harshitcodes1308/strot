@@ -79,10 +79,26 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const searchMutation = trpc.leads.search.useMutation();
   const saveMutation = trpc.leads.save.useMutation();
+  const { data: runStatuses } = trpc.leads.getScraperStatus.useQuery(
+    { runIds: activeRunIds },
+    { 
+      enabled: activeRunIds.length > 0, 
+      refetchInterval: (query) => {
+        // Stop polling if all are done
+        const statuses = query.state.data;
+        if (!statuses) return 2000; // default interval
+        const allDone = statuses.every(s => s.status === 'completed' || s.status === 'failed');
+        return allDone ? false : 2000;
+      }
+    }
+  );
+  
+  const getResultsMutation = trpc.leads.getScraperResults.useMutation();
 
   // Industry Auto-fill
   useEffect(() => {
@@ -107,9 +123,27 @@ export default function SearchPage() {
       setAutoIndustry(true);
     } else if (!matchedIndustry && autoIndustry) {
       setIndustry("");
-      setAutoIndustry(false);
     }
   }, [query]);
+
+  // Handle polling completion
+  useEffect(() => {
+    if (activeRunIds.length === 0 || !runStatuses) return;
+    const allDone = runStatuses.every(s => s.status === 'completed' || s.status === 'failed');
+    if (allDone) {
+      // Fetch final results
+      getResultsMutation.mutateAsync({ runIds: activeRunIds }).then((finalResults: SearchResult[]) => {
+        setResults(finalResults);
+        setLoading(false);
+        setSearched(true);
+        setActiveRunIds([]);
+      }).catch((e: Error) => {
+        console.error("Failed to fetch final results", e);
+        setLoading(false);
+        setActiveRunIds([]);
+      });
+    }
+  }, [runStatuses, activeRunIds, getResultsMutation]);
 
   const toggleSource = useCallback((src: LeadSource) => {
     setActiveSources(prev =>
@@ -121,23 +155,26 @@ export default function SearchPage() {
     if (!query.trim()) return;
     setLoading(true);
     setSearched(false);
+    setResults([]);
     try {
-      const res = await searchMutation.mutateAsync({
+      const runIds = await searchMutation.mutateAsync({
         query,
         location: location || undefined,
         industry: industry || undefined,
-        sources: activeSources as ("linkedin" | "instagram" | "google_maps" | "website")[],
+        sources: ["deep-discovery"] as any,
       });
-      setResults(res as SearchResult[]);
+      if (runIds.length === 0) {
+        setLoading(false);
+        setSearched(true);
+      } else {
+        setActiveRunIds(runIds); // Starts polling
+      }
     } catch (e) {
       console.error("Search failed:", e);
-      // Fallback or error display logic can go here
-      setResults([]);
-    } finally {
       setLoading(false);
       setSearched(true);
     }
-  }, [query, location, industry, activeSources, searchMutation]);
+  }, [query, location, industry, searchMutation]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") runSearch();
@@ -254,35 +291,18 @@ export default function SearchPage() {
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Source toggles */}
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {SOURCE_OPTS.map(s => {
-              const active = activeSources.includes(s.value);
-              return (
-                <button
-                  key={s.value}
-                  onClick={() => toggleSource(s.value)}
-                  className={`source-pill ${s.cls}`}
-                  title={s.description}
-                  style={{ border: "1px solid currentColor", cursor: "pointer", opacity: active ? 1 : 0.3, transition: "opacity 150ms", background: active ? undefined : "transparent" }}
-                >
-                  <s.icon size={10} weight="fill" />
-                  {s.label}
-                </button>
-              );
-            })}
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "0 8px" }}>
+            <MapPin size={12} color="var(--ink-muted)" />
+            <input
+              className="command-input"
+              placeholder="Any location..."
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              onKeyDown={handleKeyDown}
+              style={{ fontSize: 12, padding: "6px 0", width: 120, background: "transparent" }}
+            />
           </div>
-
-          <div style={{ width: 1, height: 18, background: "var(--border-subtle)", flexShrink: 0 }} />
-
-          <input
-            className="input"
-            placeholder="Location (city, country)"
-            value={location}
-            onChange={e => setLocation(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{ width: 180, fontSize: 12 }}
-          />
 
           <select
             className="input"
@@ -315,13 +335,20 @@ export default function SearchPage() {
               </span>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-              {SOURCE_OPTS.filter(s => activeSources.includes(s.value)).map((s, i) => (
-                <motion.div key={s.value} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.12 }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--ink-muted)" }}>
-                  <s.icon size={11} weight="fill" />
-                  {s.label}
-                  <CircleNotch size={9} style={{ animation: "spin 0.8s linear infinite" }} />
-                </motion.div>
-              ))}
+              {runStatuses && runStatuses.map((rs, i) => {
+                const isCompleted = rs.status === "completed";
+                const isFailed = rs.status === "failed";
+                const resultsCount = rs.resultsCount || 0;
+
+                return (
+                  <motion.div key={rs.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.12 }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: isCompleted ? "var(--success)" : isFailed ? "var(--error)" : "var(--ink-muted)" }}>
+                    <span>Deep Discovery</span>
+                    {!isCompleted && !isFailed && <CircleNotch size={9} style={{ animation: "spin 0.8s linear infinite" }} />}
+                    {isCompleted && <span style={{ marginLeft: 2 }}>({resultsCount} found)</span>}
+                    {isFailed && <span style={{ marginLeft: 2 }}>(failed)</span>}
+                  </motion.div>
+                );
+              })}
             </div>
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} style={{ padding: "14px 0", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 14, alignItems: "center" }}>
@@ -579,13 +606,36 @@ function SearchResultRow({
           )}
         </div>
 
-        {/* Opportunity signals */}
-        {result.opportunitySignals && result.opportunitySignals.length > 0 && (
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}>
-            {result.opportunitySignals.slice(0, 3).map(sig => (
-              <span key={sig} className="badge badge-warning" style={{ fontSize: 10 }}>
-                {sig}
-              </span>
+        {/* Opportunity signals & Pain Points */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
+          {result.opportunitySignals && result.opportunitySignals.length > 0 && (
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {result.opportunitySignals.slice(0, 3).map(sig => (
+                <span key={sig} className="badge badge-warning" style={{ fontSize: 10 }}>
+                  {sig}
+                </span>
+              ))}
+            </div>
+          )}
+          
+          {result.painPoints && result.painPoints.length > 0 && (
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {result.painPoints.map((point, i) => (
+                <span key={i} className="badge badge-error" style={{ fontSize: 10 }}>
+                  ⚠️ {point}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Photos Gallery */}
+        {result.photos && result.photos.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 4 }}>
+            {result.photos.slice(0, 5).map((photoUrl, i) => (
+              <div key={i} style={{ width: 48, height: 48, borderRadius: "var(--r-md)", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border)" }}>
+                <img src={photoUrl} alt="Location" style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+              </div>
             ))}
           </div>
         )}

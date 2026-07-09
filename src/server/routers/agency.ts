@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { matchmakeAgencyLead, generateAIProposal } from "@/lib/ai/recommend";
 
@@ -137,6 +138,12 @@ export const agencyRouter = createTRPCRouter({
   getProposal: protectedProcedure
     .input(z.object({ leadId: z.string() }))
     .query(async ({ ctx, input }) => {
+      // Verify lead belongs to workspace
+      const lead = await ctx.db.lead.findFirst({
+        where: { id: input.leadId, workspaceId: ctx.workspaceId },
+      });
+      if (!lead) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
+
       return ctx.db.proposal.findUnique({
         where: { leadId: input.leadId },
       });

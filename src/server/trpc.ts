@@ -1,129 +1,90 @@
-import { initTRPC } from "@trpc/server";
+/**
+ * tRPC server setup — context creation, router factory, and procedure middleware.
+ *
+ * Auth strategy:
+ *   1. If CLERK_SECRET_KEY is set → use Clerk auth (production)
+ *   2. Otherwise → dev-mode with simulated user "dev_user_001"
+ *
+ * The context auto-provisions users and workspaces on first request
+ * so the onboarding flow is frictionless.
+ * @module
+ */
+
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { db } from "@/lib/db";
 
-let dbSeeded = false;
+// ── Context ─────────────────────────────────────────────
 
-// Simulated Context for now (since we skipped Clerk)
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  // Use cookie or header if provided, fallback to test_user_123
-  const cookies = opts.headers.get("cookie") || "";
-  const match = cookies.match(new RegExp('(^| )simulated-user-id=([^;]+)'));
-  const clerkId = match ? match[2] : (opts.headers.get("x-user-id") || "test_user_123");
+  let clerkId: string;
 
-  // Predefined users for simulated testing
-  const userMap: Record<string, { name: string; email: string }> = {
-    test_user_123: { name: "Test Owner", email: "owner@strot.agency" },
-    test_user_456: { name: "Alice Dev", email: "alice@strot.agency" },
-    test_user_789: { name: "Bob Marketer", email: "bob@strot.agency" },
-  };
+  // 1. Attempt Clerk authentication
+  const hasClerk = !!process.env.CLERK_SECRET_KEY;
 
-  const mockInfo = userMap[clerkId] || { name: "Guest Member", email: "guest@strot.agency" };
+  if (hasClerk) {
+    try {
+      const { auth } = await import("@clerk/nextjs/server");
+      const session = await auth();
+      clerkId = session.userId ?? "";
+    } catch {
+      // Clerk middleware not active for this request (e.g. public route)
+      clerkId = "";
+    }
+  } else {
+    // Dev mode — use cookie/header if present, otherwise default dev user
+    const cookies = opts.headers.get("cookie") || "";
+    const match = cookies.match(/(?:^| )simulated-user-id=([^;]+)/);
+    clerkId = match?.[1] || opts.headers.get("x-user-id") || "dev_user_001";
 
-  // 1. Ensure the user exists
+    if (process.env.NODE_ENV === "development") {
+      // Only log once per process, not every request
+      logDevModeOnce();
+    }
+  }
+
+  // For public routes that don't require auth, return minimal context
+  if (!clerkId) {
+    return { db, userId: "", workspaceId: "", userRole: "", clerkId: "", ...opts };
+  }
+
+  // 2. Ensure user exists in DB
   let dbUser = await db.user.findUnique({ where: { clerkId } });
   if (!dbUser) {
+    const devUserInfo = DEV_USERS[clerkId] ?? { name: "User", email: `${clerkId}@strot.app` };
     dbUser = await db.user.create({
-      data: { clerkId, name: mockInfo.name, email: mockInfo.email }
+      data: { clerkId, name: devUserInfo.name, email: devUserInfo.email },
     });
   }
 
-  // 2. Find or create the primary workspace
-  let workspace = await db.workspace.findFirst();
+  // 3. Find workspace FOR THIS USER (fixed: was findFirst() with no filter)
+  let workspace = await db.workspace.findFirst({
+    where: { userId: dbUser.id },
+  });
   if (!workspace) {
-    // Find or create the owner user
-    let ownerUser = await db.user.findUnique({ where: { clerkId: "test_user_123" } });
-    if (!ownerUser) {
-      ownerUser = await db.user.create({
-        data: { clerkId: "test_user_123", name: "Test Owner", email: "owner@strot.agency" }
-      });
-    }
     workspace = await db.workspace.create({
-      data: { name: "Main Agency Workspace", userId: ownerUser.id }
+      data: { name: "My Workspace", userId: dbUser.id },
     });
   }
 
-  // Check if database needs seeding of test leads
-  if (!dbSeeded) {
-    const leadCount = await db.lead.count();
-  if (leadCount === 0) {
-    await db.lead.create({
-      data: {
-        workspaceId: workspace.id,
-        name: "Meridian Studio",
-        domain: "meridianstudio.io",
-        description: "Architecture and interior design firm in NYC. Strong LinkedIn presence but weak website — no portfolio CMS, no contact form, no analytics.",
-        location: "New York, NY",
-        industry: "Architecture",
-        sources: ["linkedin", "google_maps", "website"],
-        opportunitySignals: ["Poor website performance", "No analytics detected", "Strong social, weak web"],
-        buyingSignals: ["stale_website", "no_analytics", "poor_performance"],
-        opportunityScore: 85,
-        status: "active",
-        postmortem: {
-          overview: "Meridian Studio is an architecture and interior design agency operating in NYC. They have solid social presence but their website leaves a lot to be desired.",
-          founders: [{ name: "Sarah Vance", role: "Principal Architect" }],
-          techStack: ["WordPress", "Elementor"],
-          seo: { rating: "poor", description: "Missing critical schema tags and title metadata." },
-          speed: { mobile: 42, desktop: 38 },
-          issues: ["No modern CMS portfolio loader", "Missing conversion calls to action", "No Google Analytics pixel detected"]
-        },
-        audit: {
-          performance: 38,
-          accessibility: 72,
-          bestPractices: 60,
-          seo: 45
-        }
-      }
-    });
-
-    await db.lead.create({
-      data: {
-        workspaceId: workspace.id,
-        name: "Brew & Grind Coffee",
-        domain: "brewandgrind.co",
-        description: "Specialty coffee roaster in Portland. 4.8★ on Maps, 8k Instagram followers, but no e-commerce and dated website.",
-        location: "Portland, OR",
-        industry: "Food & Beverage",
-        sources: ["google_maps", "instagram", "website"],
-        opportunitySignals: ["No e-commerce despite strong brand", "High review velocity", "Instagram audience untapped"],
-        buyingSignals: ["no_ecommerce", "high_reviews", "squarespace_outdated"],
-        opportunityScore: 92,
-        status: "warm",
-        postmortem: {
-          overview: "Brew & Grind is a popular Portland-based specialty coffee roaster. Excellent branding on Instagram and local authority but zero direct-to-consumer e-commerce checkout options on the web.",
-          founders: [{ name: "Marcus Brew", role: "Founder & Roaster" }],
-          techStack: ["Squarespace"],
-          seo: { rating: "fair", description: "Good local indexing but weak commercial keyword reach." },
-          speed: { mobile: 58, desktop: 61 },
-          issues: ["No ecommerce storefront integration", "Squarespace platform limitations", "No newsletter subscription signup form"]
-        },
-        audit: {
-          performance: 61,
-          accessibility: 88,
-          bestPractices: 75,
-          seo: 90
-        }
-      }
-    });
-    }
-    dbSeeded = true;
-  }
-
-  // 3. Ensure the current user has a WorkspaceMember membership in this workspace
+  // 4. Ensure workspace membership
   let membership = await db.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId: workspace.id, userId: dbUser.id } }
+    where: {
+      workspaceId_userId: {
+        workspaceId: workspace.id,
+        userId: dbUser.id,
+      },
+    },
   });
 
   if (!membership) {
-    const role = clerkId === "test_user_123" ? "OWNER" : "MEMBER";
     membership = await db.workspaceMember.create({
       data: {
         workspaceId: workspace.id,
         userId: dbUser.id,
-        role,
-      }
+        role: "OWNER",
+      },
     });
   }
 
@@ -136,6 +97,27 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     ...opts,
   };
 };
+
+// ── Dev-mode helpers ────────────────────────────────────
+
+/** Default dev users for simulated auth (replaces hardcoded userMap) */
+const DEV_USERS: Record<string, { name: string; email: string }> = {
+  dev_user_001: { name: "Test Owner", email: "owner@strot.agency" },
+  // Legacy IDs for backward compat with existing cookies
+  test_user_123: { name: "Test Owner", email: "owner@strot.agency" },
+  test_user_456: { name: "Alice Dev", email: "alice@strot.agency" },
+  test_user_789: { name: "Bob Marketer", email: "bob@strot.agency" },
+};
+
+let devModeLogged = false;
+function logDevModeOnce() {
+  if (!devModeLogged) {
+    console.warn("[Strot] ⚠ Clerk not configured — using dev-mode auth");
+    devModeLogged = true;
+  }
+}
+
+// ── tRPC init ───────────────────────────────────────────
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -153,9 +135,13 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
+
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.userId || !ctx.workspaceId) {
-    throw new Error("UNAUTHORIZED");
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Authentication required",
+    });
   }
   return next({
     ctx: {

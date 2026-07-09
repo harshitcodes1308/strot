@@ -88,6 +88,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
           "places.businessStatus",
           "places.regularOpeningHours.weekdayDescriptions",
           "places.photos",
+          "places.reviews",
         ].join(","),
       },
       body: JSON.stringify(body),
@@ -179,10 +180,19 @@ export class GoogleMapsScraper implements LeadSourceScraper {
         ? place.websiteUri.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
         : null;
 
-      let photoUrl = null;
+      let photoUrls: string[] = [];
       if (place.photos && place.photos.length > 0) {
-        photoUrl = `https://places.googleapis.com/v1/${place.photos[0].name}/media?maxHeightPx=400&maxWidthPx=400&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+        photoUrls = place.photos.slice(0, 6).map(p => 
+          `https://places.googleapis.com/v1/${p.name}/media?maxHeightPx=800&maxWidthPx=800&key=${process.env.GOOGLE_PLACES_API_KEY}`
+        );
       }
+
+      // Extract raw reviews texts
+      const rawReviews = (place.reviews || [])
+        .map(r => r.text?.text)
+        .filter(Boolean) as string[];
+
+      google.reviews = rawReviews;
 
       return {
         name:        place.displayName.text,
@@ -190,7 +200,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
         description: `${humanizeCategory(place.primaryType ?? "")} — ${place.formattedAddress}. ${place.rating}★ (${place.userRatingCount} reviews).`,
         location:    extractCity(place.formattedAddress ?? ""),
         industry:    humanizeCategory(place.primaryType ?? ""),
-        sourceData:  { google, photoUrl },
+        sourceData:  { google, photoUrls },
       };
     }
 
@@ -238,11 +248,15 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       name: lead.name,
       domain: lead.domain ?? null,
       description: lead.description ?? null,
-      avatar: lead.sourceData?.photoUrl
+      avatar: (lead.sourceData?.photoUrls?.[0]) 
         ?? (lead.domain ? `https://www.google.com/s2/favicons?domain=${lead.domain}&sz=128` : null),
       source: sourceId,
-      sourceUrl: g?.placeId ? `https://www.google.com/maps/place/?q=place_id:${g.placeId}` : `https://www.google.com/maps/search/${encodeURIComponent(lead.name)}`,
-      profileUrl: g?.website || (g?.placeId ? `https://www.google.com/maps/place/?q=place_id:${g.placeId}` : `https://www.google.com/maps/search/${encodeURIComponent(lead.name)}`),
+      sourceUrl: g?.placeId 
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name)}&query_place_id=${g.placeId}` 
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name)}`,
+      profileUrl: g?.website || (g?.placeId 
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name)}&query_place_id=${g.placeId}` 
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name)}`),
       socialProfiles: {},
       sources: [sourceId],
       emails: [],
@@ -263,6 +277,8 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       google: g,
       opportunitySignals: signals,
       isSaved: false,
+      photos: (lead.sourceData?.photoUrls as string[]) || [],
+      painPoints: [], // Will be filled by background job
     };
   }
 }
@@ -281,6 +297,7 @@ interface GooglePlaceResult {
   businessStatus?: string;
   regularOpeningHours?: { weekdayDescriptions: string[] };
   photos?: Array<{ name: string; widthPx?: number; heightPx?: number }>;
+  reviews?: Array<{ text?: { text: string } }>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

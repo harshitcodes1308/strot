@@ -35,8 +35,8 @@ export class InstagramScraper implements LeadSourceScraper {
       return [];
     }
 
-    const q = params.location ? `${params.query} ${params.location}` : params.query;
-    const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(`site:instagram.com ${q}`)}&api_key=${serpKey}&num=${limit}`;
+    // Use quotes for exact business/niche name and exclude posts/reels to strictly find profile pages
+    const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(`site:instagram.com "${params.query}" ${params.location || ""} -inurl:p -inurl:reel -inurl:explore`)}&api_key=${serpKey}&num=${limit}`;
     
     try {
       const res = await fetch(searchUrl);
@@ -57,10 +57,26 @@ export class InstagramScraper implements LeadSourceScraper {
   parse(raw: RawLeadData): NormalizedLead {
     const data = raw.raw as any;
     
+    let handle = "";
+    if (data.link) {
+      const match = data.link.match(/instagram\.com\/([^\/]+)/i);
+      if (match) handle = match[1];
+    }
+    
     // Extract profile name from title (strip " (@handle) • Instagram photos and videos" etc)
     const title = data.title || "";
-    const nameMatch = title.match(/^(.*?)(?:\s*\(@.*?\))?(?:\s*[•|-]\s*Instagram.*)?$/i);
-    const name = nameMatch ? nameMatch[1].trim() : "Unknown Instagrammer";
+    let name = handle || "Unknown Profile";
+    
+    // Only extract the name if the title explicitly contains the (@handle) pattern, which indicates it's a profile page, not a post
+    const profileMatch = title.match(new RegExp(`^(.*?)\\s*\\(@${handle}\\)`, "i"));
+    if (profileMatch && profileMatch[1]) {
+       name = profileMatch[1].trim();
+    } else if (title.includes("• Instagram photos and videos")) {
+       const split = title.split("•")[0].trim();
+       if (split && split.length < 30) {
+         name = split;
+       }
+    }
     
     // Extract followers if present in snippet (e.g. "10K Followers, 500 Following")
     let followers = null;
@@ -74,14 +90,25 @@ export class InstagramScraper implements LeadSourceScraper {
       }
     }
 
-    let handle = "";
-    if (data.link) {
-      const match = data.link.match(/instagram\.com\/([^\/]+)/i);
-      if (match) handle = match[1];
+    
+    // Aggressively extract emails and phones from snippet
+    const emails: string[] = [];
+    const phones: string[] = [];
+    if (data.snippet) {
+      const emailMatches = data.snippet.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+      if (emailMatches) {
+        emailMatches.forEach((e: string) => emails.push(e.toLowerCase()));
+      }
+      
+      const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
+      const phoneMatches = data.snippet.match(phoneRegex);
+      if (phoneMatches) {
+        phoneMatches.forEach((p: string) => phones.push(p.trim()));
+      }
     }
     
     return {
-      name: name || handle || "Unknown Profile",
+      name,
       domain: null, // hard to get from IG serp usually
       description: data.snippet,
       sourceData: {
@@ -90,7 +117,9 @@ export class InstagramScraper implements LeadSourceScraper {
           handle,
           followers,
           snippet: data.snippet,
-        }
+        },
+        extractedEmails: Array.from(new Set(emails)),
+        extractedPhones: Array.from(new Set(phones))
       }
     };
   }
@@ -112,8 +141,8 @@ export class InstagramScraper implements LeadSourceScraper {
         instagram: url,
       },
       sources: [sourceId],
-      emails: [], 
-      phones: [], 
+      emails: (lead.sourceData?.extractedEmails as string[]) || [], 
+      phones: (lead.sourceData?.extractedPhones as string[]) || [], 
       location: lead.location ?? null,
       industry: lead.industry ?? null,
       employeeCount: null, 
@@ -127,6 +156,8 @@ export class InstagramScraper implements LeadSourceScraper {
       isRunningAds: false,
       opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
+      photos: [],
+      painPoints: [],
     };
 
     (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);

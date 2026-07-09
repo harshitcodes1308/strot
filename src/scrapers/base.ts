@@ -141,13 +141,21 @@ export function normalizeDomain(domain: string | null): string {
     .trim();
 }
 
-/** Returns true if two SearchResults are likely the same company */
 export function areDuplicates(a: SearchResult, b: SearchResult): boolean {
-  const domainMatch = normalizeDomain(a.domain) === normalizeDomain(b.domain);
-  if (domainMatch) return true;
+  const normA = normalizeDomain(a.domain);
+  const normB = normalizeDomain(b.domain);
+  
+  // Only match on domain if BOTH leads actually have a valid domain
+  if (normA && normB && normA === normB) {
+    return true;
+  }
 
   const nameSim = jaroWinkler(a.name, b.name);
-  if (nameSim >= 0.88) return true;
+  
+  // If they have similar names AND share the same city/location (if provided), or very high name similarity
+  if (nameSim >= 0.92) {
+    return true;
+  }
 
   return false;
 }
@@ -156,15 +164,17 @@ export function computeCompleteness(result: Partial<SearchResult>): number {
   let score = 0;
   const weights: Record<string, number> = {
     name: 5,
-    domain: 10,
+    domain: 5,
     description: 5,
-    emails: 30, // Having emails is most important
-    phones: 20,
+    emails: 25, 
+    phones: 15,
     location: 5,
     industry: 5,
     socialProfiles: 10,
     followers: 5,
     avatar: 5,
+    techStack: 10,
+    hasWebsite: 5,
   };
   
   if (result.name) score += weights.name;
@@ -177,6 +187,9 @@ export function computeCompleteness(result: Partial<SearchResult>): number {
   if (result.socialProfiles && Object.keys(result.socialProfiles).length > 0) score += weights.socialProfiles;
   if (result.followers !== null && result.followers !== undefined) score += weights.followers;
   if (result.avatar) score += weights.avatar;
+  if (result.techStack && result.techStack.length > 0) score += weights.techStack;
+  if (result.hasWebsite) score += weights.hasWebsite;
+
   
   return Math.min(100, score);
 }
@@ -236,6 +249,14 @@ export function deduplicateResults(results: SearchResult[]): SearchResult[] {
           ...(existing.opportunitySignals ?? []),
           ...(result.opportunitySignals ?? []),
         ])),
+        photos: Array.from(new Set([
+          ...(existing.photos || []),
+          ...(result.photos || [])
+        ])),
+        painPoints: Array.from(new Set([
+          ...(existing.painPoints || []),
+          ...(result.painPoints || [])
+        ])),
         isSaved: existing.isSaved || result.isSaved,
         dataCompleteness: 0, // Computed below
       };
@@ -261,36 +282,60 @@ export class ScraperOrchestrator {
     this.scrapers.set(scraper.id, scraper);
   }
 
+  getScraper(id: LeadSource): LeadSourceScraper | undefined {
+    return this.scrapers.get(id);
+  }
+
   async search(
     params: ScraperParams,
     enabledSources: LeadSource[],
-    config?: Partial<BrowserConfig>
-  ): Promise<SearchResult[]> {
-    const activeSources = enabledSources
-      .map(id => this.scrapers.get(id))
-      .filter((s): s is LeadSourceScraper => !!s);
+    context: { workspaceId: string; userId: string }
+  ): Promise<string[]> {
 
-    // Run all enabled scrapers concurrently, fail gracefully per-source
-    const sourceResults = await Promise.allSettled(
-      activeSources.map(async scraper => {
-        const raws = await scraper.fetch(params, config);
-        return raws.map(raw => {
-          const normalized = scraper.parse(raw);
-          return scraper.normalize(normalized, scraper.id);
-        });
-      })
-    );
 
-    const allResults: SearchResult[] = [];
-    for (const result of sourceResults) {
-      if (result.status === "fulfilled") {
-        allResults.push(...result.value);
-      }
-      // Rejected = source failed. Log but don't crash.
-      // TODO: surface per-source error states in UI (Phase 1.5)
+
+    const { db } = await import("@/lib/db");
+    const { inngest } = await import("@/inngest/client");
+
+    const cacheKey = params.location ? `${params.query} in ${params.location}` : params.query;
+
+    // TTL Check: Don't re-scrape the exact same query + location within 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentRun = await db.scraperRun.findFirst({
+      where: {
+        workspaceId: context.workspaceId,
+        source: "deep-discovery",
+        query: cacheKey,
+        status: "completed",
+        completedAt: { gte: twentyFourHoursAgo },
+      },
+    });
+
+    if (recentRun) {
+      return [recentRun.id];
     }
 
-    return deduplicateResults(allResults);
+    const run = await db.scraperRun.create({
+      data: {
+        workspaceId: context.workspaceId,
+        userId: context.userId,
+        source: "deep-discovery",
+        query: cacheKey,
+        status: "pending",
+      },
+    });
+
+    await inngest.send({
+      name: "scraper/deep.requested",
+      data: {
+        runId: run.id,
+        query: params.query,
+        location: params.location,
+        industry: params.industry,
+      },
+    });
+
+    return [run.id];
   }
 }
 

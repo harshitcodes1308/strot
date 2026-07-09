@@ -35,8 +35,8 @@ export class LinkedInScraper implements LeadSourceScraper {
       return [];
     }
 
-    const q = params.location ? `${params.query} ${params.location}` : params.query;
-    const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(`site:linkedin.com/company/ ${q}`)}&api_key=${serpKey}&num=${limit}`;
+    // Use quotes to strictly search for the exact business/niche name
+    const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(`site:linkedin.com/company/ "${params.query}" ${params.location || ""}`)}&api_key=${serpKey}&num=${limit}`;
     
     try {
       const res = await fetch(searchUrl);
@@ -69,6 +69,22 @@ export class LinkedInScraper implements LeadSourceScraper {
         domain = urlMatch[1];
       }
     }
+
+    // Aggressively extract emails and phones from snippet
+    const emails: string[] = [];
+    const phones: string[] = [];
+    if (data.snippet) {
+      const emailMatches = data.snippet.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+      if (emailMatches) {
+        emailMatches.forEach((e: string) => emails.push(e.toLowerCase()));
+      }
+      
+      const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
+      const phoneMatches = data.snippet.match(phoneRegex);
+      if (phoneMatches) {
+        phoneMatches.forEach((p: string) => phones.push(p.trim()));
+      }
+    }
     
     return {
       name,
@@ -80,7 +96,9 @@ export class LinkedInScraper implements LeadSourceScraper {
           url: data.link,
           title: data.title,
           snippet: data.snippet,
-        }
+        },
+        extractedEmails: Array.from(new Set(emails)),
+        extractedPhones: Array.from(new Set(phones))
       }
     };
   }
@@ -102,8 +120,8 @@ export class LinkedInScraper implements LeadSourceScraper {
         linkedin: url,
       },
       sources: [sourceId],
-      emails: [], 
-      phones: [], 
+      emails: (lead.sourceData?.extractedEmails as string[]) || [], 
+      phones: (lead.sourceData?.extractedPhones as string[]) || [], 
       location: lead.location ?? null,
       industry: lead.industry ?? null,
       employeeCount: null,
@@ -117,6 +135,8 @@ export class LinkedInScraper implements LeadSourceScraper {
       isRunningAds: false,
       opportunitySignals: lead.opportunitySignals ?? [],
       isSaved: false,
+      photos: [],
+      painPoints: [],
     };
     
     (result as SearchResult).dataCompleteness = computeCompleteness(result as SearchResult);

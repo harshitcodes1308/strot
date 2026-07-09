@@ -60,6 +60,7 @@ export interface GoogleMapsData {
   website?: string;
   hours?: string;
   claimedListing?: boolean;
+  reviews?: string[];
 }
 
 export interface WebsiteData {
@@ -154,6 +155,7 @@ export interface Lead {
   // Opportunity
   opportunitySignals?: string[];
   buyingSignals?: string[];
+  painPoints?: string[];
   opportunityScore: number | null;
   matchScore: number | null;
   postmortem?: any;
@@ -217,6 +219,8 @@ export interface SearchResult {
   hasWebsite: boolean;
   isRunningAds: boolean;
   dataCompleteness: number;
+  photos: string[];
+  painPoints: string[];
   
   // Legacy payload
   linkedin?: LinkedInData;

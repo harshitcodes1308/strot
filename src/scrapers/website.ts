@@ -95,110 +95,106 @@ export class WebsiteScraper implements LeadSourceScraper {
     // Ensure URL has a protocol
     const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
     try {
-      const { chromium } = await import("playwright-extra");
-      const stealth = await (import("puppeteer-extra-plugin-stealth") as any);
-      chromium.use(stealth.default());
+      // Use native fetch instead of Playwright for extreme speed in bulk discovery
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36" },
+        signal: controller.signal
+      });
 
-      const browser = await chromium.launch({ headless: true, proxy: cfg.proxy ? { server: cfg.proxy.server } : undefined });
-      const context = await browser.newContext({ userAgent: cfg.userAgent });
-      const page = await context.newPage();
+      const html = await response.text();
+      clearTimeout(timeoutId);
 
-      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: cfg.timeout });
-      const html = await page.content();
-      const title = await page.title();
-      const headers = response?.headers() ?? {};
-      const statusCode = response?.status() ?? 0;
-
+      const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+      const title = titleMatch ? titleMatch[1] : "";
+      const headers = Object.fromEntries(response.headers.entries());
+      const statusCode = response.status;
+      
       const domain = new URL(url).hostname;
-      const psScore = await this._fetchPageSpeedScore(domain);
 
-      await browser.close();
-      return { sourceId: "website", raw: { url, html, headers, statusCode, psScore, title } };
+      // Extract details immediately to avoid returning 2MB HTML payloads
+      const techStack = Array.from(new Set(
+        TECH_FINGERPRINTS.filter(t => t.patterns.some(p => p.test(html))).map(t => t.name)
+      ));
+      
+      const emailsMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi) || [];
+      const mailtoMatches = html.match(/href="mailto:([^"?]+)/gi) || [];
+      const emailsSet = new Set<string>();
+      emailsMatch.forEach(e => {
+        if (!e.endsWith('.png') && !e.endsWith('.jpg') && !e.endsWith('.svg') && !e.endsWith('.webp')) emailsSet.add(e.toLowerCase());
+      });
+      mailtoMatches.forEach(m => {
+        const email = m.replace(/href="mailto:/i, "").trim().toLowerCase();
+        if (email.includes("@")) emailsSet.add(email);
+      });
+
+      const phonesSet = new Set<string>();
+      const phoneRegex = /(?:tel:|Call us:? )?(\+?[\d\s\-\(\)]{10,20})/gi;
+      let phoneMatch;
+      while ((phoneMatch = phoneRegex.exec(html)) !== null) {
+        const p = phoneMatch[1].trim();
+        const digits = p.replace(/\D/g, "");
+        if (digits.length >= 10 && digits.length <= 15) phonesSet.add(p);
+      }
+
+      const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
+      const description = descMatch?.[1]?.trim() ?? "";
+      
+      return { 
+        sourceId: "website", 
+        raw: { 
+          url, 
+          headers, 
+          statusCode, 
+          title, 
+          description,
+          extracted: {
+            techStack,
+            emails: Array.from(emailsSet),
+            phones: Array.from(phonesSet).slice(0, 5)
+          } 
+        } 
+      };
     } catch (e: any) {
       console.warn(`[Website] Failed to crawl ${url}:`, e.message);
       return { sourceId: "website", raw: { url } };
     }
   }
 
-  private async _fetchPageSpeedScore(domain: string): Promise<{ performance: number; mobile: number } | null> {
-    try {
-      const apiKey = process.env.PAGESPEED_API_KEY ?? "";
-      const base = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
-      const params = new URLSearchParams({
-        url: `https://${domain}`,
-        strategy: "mobile",
-        ...(apiKey ? { key: apiKey } : {}),
-        category: "performance",
-      });
-
-      const [mobileRes, desktopRes] = await Promise.all([
-        fetch(`${base}?${params}`),
-        fetch(`${base}?${new URLSearchParams({ ...Object.fromEntries(params), strategy: "desktop" })}`),
-      ]);
-
-      const [mobile, desktop] = await Promise.all([mobileRes.json(), desktopRes.json()]);
-
-      return {
-        performance: Math.round((desktop.lighthouseResult?.categories?.performance?.score ?? 0) * 100),
-        mobile: Math.round((mobile.lighthouseResult?.categories?.performance?.score ?? 0) * 100),
-      };
-    } catch {
-      return null;
-    }
-  }
-
   parse(raw: RawLeadData): NormalizedLead {
-    const { url, html, headers, psScore, title } = (raw.raw || {}) as {
-      url: string;
-      html?: string;
-      headers?: Record<string, string>;
-      statusCode?: number;
-      psScore?: { performance: number; mobile: number } | null;
-      title?: string;
-    };
-    
-    if (!html) {
-      return {
-        name: title ?? "",
-        domain: String(url ?? "").replace(/^https?:\/\/(www\.)?/, "").split("/")[0],
-        description: "",
-        sourceData: { website: {} },
-      };
-    }
+    const { url, headers, title, description, extracted } = (raw.raw || {}) as any;
 
-    const techStack = detectTechStack(html);
-    const cms = techStack.find(t => CMS_PATTERNS.includes(t));
-    const hasAnalytics = techStack.some(t => ANALYTICS_PATTERNS.includes(t));
-    const hasEcommerce = techStack.some(t => ECOMMERCE_PATTERNS.includes(t));
-    const hasSSL = url.startsWith("https://");
-    const lastModified = headers?.["last-modified"];
+    const techStack = extracted?.techStack || [];
+    const emails = extracted?.emails || [];
+    const phones = extracted?.phones || [];
+
+    const hasAnalytics = techStack.some((t: string) => ANALYTICS_PATTERNS.includes(t));
+    const hasEcommerce = techStack.some((t: string) => ECOMMERCE_PATTERNS.includes(t));
+    const cms = techStack.find((t: string) => CMS_PATTERNS.includes(t));
+
+    const hasSSL = url ? url.startsWith("https") : false;
+    const lastModified = headers?.["last-modified"] || headers?.["date"] || null;
 
     const website: WebsiteData = {
       techStack,
       hasAnalytics,
       hasCMS: !!cms,
       hasEcommerce,
-      performanceScore: psScore?.performance,
-      mobileScore: psScore?.mobile,
       hasSSL,
       cms,
       lastUpdated: lastModified,
     };
 
-    const domain = new URL(url).hostname.replace(/^www\./, "");
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const name = titleMatch?.[1]?.replace(/\s*[-|].*$/, "").trim() ?? title ?? domain;
-    const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
-    const description = descMatch?.[1]?.trim() ?? "";
-
-    const emailsMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
-    const emails = emailsMatch ? Array.from(new Set(emailsMatch)).filter(e => !e.endsWith('.png') && !e.endsWith('.jpg') && !e.endsWith('.svg') && !e.endsWith('.webp')) : [];
+    const domain = url ? new URL(url).hostname.replace(/^www\./, "") : "unknown";
+    const name = title?.replace(/\s*[-|].*$/, "").trim() ?? domain;
 
     return { 
       name, 
       domain, 
       description, 
-      sourceData: { website, extractedEmails: emails } 
+      sourceData: { website, extractedEmails: emails, extractedPhones: phones } 
     };
   }
 
@@ -207,6 +203,7 @@ export class WebsiteScraper implements LeadSourceScraper {
     const signals = computeOpportunitySignals({ website: w });
     
     const extractedEmails = (lead.sourceData.extractedEmails as string[]) || [];
+    const extractedPhones = (lead.sourceData.extractedPhones as string[]) || [];
 
     let dataCompleteness = 30; // base score
     if (w?.techStack?.length) dataCompleteness += 20;
@@ -226,7 +223,7 @@ export class WebsiteScraper implements LeadSourceScraper {
       socialProfiles: {},
       sources: [sourceId],
       emails: extractedEmails,
-      phones: [],
+      phones: extractedPhones,
       location: lead.location ?? null,
       industry: lead.industry ?? null,
       employeeCount: lead.employees ?? null,
@@ -243,6 +240,8 @@ export class WebsiteScraper implements LeadSourceScraper {
       website: w,
       opportunitySignals: signals,
       isSaved: false,
+      photos: [],
+      painPoints: [],
     };
   }
 }
@@ -261,15 +260,28 @@ const BLACKLISTED_DOMAINS = [
   "facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com",
   "youtube.com", "tiktok.com", "pinterest.com", "reddit.com",
   "yelp.com", "tripadvisor.com", "google.com", "amazon.com",
-  "clutch.co", "goodfirms.co", "crunchbase.com",
-  "wikipedia.org", "indeed.com", "glassdoor.com",
+  "clutch.co", "goodfirms.co", "crunchbase.com", "zoominfo.com",
+  "wikipedia.org", "indeed.com", "glassdoor.com", "glassdoor.co.in",
+  "justdial.com", "indiamart.com", "yellowpages.com", "foursquare.com",
+  "bbb.org", "trustpilot.com", "g2.com", "capterra.com", "upcity.com",
+  "expertise.com", "angi.com", "thumbtack.com", "houzz.com", "porch.com",
+  "mapquest.com", "superpages.com", "local.yahoo.com", "manta.com",
+  "dexknows.com", "chamberofcommerce.com", "hotfrog.com", "ezlocal.com",
+  "citysearch.com", "brownbook.net", "merchantcircle.com", "localdatabase.com",
+  "nextdoor.com", "whitepages.com", "yp.com", "sulekha.com", "tradeindia.com",
+  "exportersindia.com", "ambitionbox.com", "booking.com", "agoda.com",
+  "zomato.com", "swiggy.com", "ubereats.com", "doordash.com", "grubhub.com",
+  "postmates.com", "justeat.com", "deliveroo.co.uk", "opentable.com", 
+  "thefork.com", "michelin.com"
 ];
 
-export function isBlacklisted(url: string): boolean {
+export function isBlacklisted(urlOrDomain: string): boolean {
   try {
-    const hostname = new URL(url).hostname.replace(/^www\./, "");
+    // If it's just a domain (no http), add https:// so new URL() can parse it safely
+    const safeUrl = urlOrDomain.startsWith("http") ? urlOrDomain : `https://${urlOrDomain}`;
+    const hostname = new URL(safeUrl).hostname.replace(/^www\./, "");
     return BLACKLISTED_DOMAINS.some(d => hostname === d || hostname.endsWith(`.${d}`));
   } catch {
-    return true;
+    return true; // Still fallback to true if it's completely malformed
   }
 }

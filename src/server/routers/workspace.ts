@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 export const workspaceRouter = createTRPCRouter({
@@ -69,7 +70,7 @@ export const workspaceRouter = createTRPCRouter({
     .input(z.object({ memberId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.userRole !== "OWNER") {
-        throw new Error("Only workspace owners can remove team members.");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only workspace owners can remove team members." });
       }
 
       const member = await ctx.db.workspaceMember.findUnique({
@@ -78,11 +79,15 @@ export const workspaceRouter = createTRPCRouter({
       });
 
       if (!member) {
-        throw new Error("Team member not found.");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found." });
+      }
+
+      if (member.workspaceId !== ctx.workspaceId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found." });
       }
 
       if (member.userId === ctx.userId) {
-        throw new Error("You cannot remove yourself from the workspace.");
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself from the workspace." });
       }
 
       await ctx.db.workspaceMember.delete({
@@ -106,7 +111,7 @@ export const workspaceRouter = createTRPCRouter({
     .input(z.object({ memberId: z.string(), role: z.enum(["OWNER", "MEMBER"]) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.userRole !== "OWNER") {
-        throw new Error("Only workspace owners can change member roles.");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only workspace owners can change member roles." });
       }
 
       const member = await ctx.db.workspaceMember.findUnique({
@@ -115,7 +120,11 @@ export const workspaceRouter = createTRPCRouter({
       });
 
       if (!member) {
-        throw new Error("Team member not found.");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found." });
+      }
+
+      if (member.workspaceId !== ctx.workspaceId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found." });
       }
 
       const updated = await ctx.db.workspaceMember.update({

@@ -24,7 +24,19 @@
  *   No other files change.
  */
 
-import { orchestrator } from "./base";
+import { orchestrator, LeadSourceScraper } from "./base";
+import { RawLeadData, SearchResult, ScraperParams, NormalizedLead, LeadSource } from "@/lib/types";
+
+class StubScraper implements LeadSourceScraper {
+  public label: string;
+  public selectors = {};
+  constructor(public id: LeadSource) {
+    this.label = id.charAt(0).toUpperCase() + id.slice(1);
+  }
+  async fetch(): Promise<RawLeadData[]> { return []; }
+  parse(): NormalizedLead { throw new Error("Stub scraper should not be parsed"); }
+  normalize(): SearchResult { throw new Error("Stub scraper should not be normalized"); }
+}
 
 // Phase 1 scrapers
 import { LinkedInScraper }    from "./linkedin";
@@ -42,16 +54,7 @@ import { ProductHuntScraper } from "./product-hunt";
 import { RedditScraper }      from "./reddit";
 import { JobBoardsScraper }   from "./job-boards";
 
-// Phase 5 scrapers — manual/beta (register so they appear in source UI as stubs)
-import { CrunchbaseScraper }  from "./crunchbase";
-import { ClutchScraper }      from "./clutch";
-import { GoodFirmsScraper }   from "./goodfirms";
-import { BehanceScraper }     from "./behance";
-import { DribbbleScraper }    from "./dribbble";
-import { JustDialScraper }    from "./justdial";
-import { IndiaMartScraper }   from "./indiamart";
-import { FacebookScraper }    from "./facebook";
-import { TwitterXScraper }    from "./twitter-x";
+
 
 // Register Phase 1
 orchestrator.register(new LinkedInScraper());
@@ -67,15 +70,14 @@ orchestrator.register(new RedditScraper());
 orchestrator.register(new JobBoardsScraper());
 
 // Register Phase 5 — stubs (return empty; log manual/beta notice)
-orchestrator.register(new CrunchbaseScraper());
-orchestrator.register(new ClutchScraper());
-orchestrator.register(new GoodFirmsScraper());
-orchestrator.register(new BehanceScraper());
-orchestrator.register(new DribbbleScraper());
-orchestrator.register(new JustDialScraper());
-orchestrator.register(new IndiaMartScraper());
-orchestrator.register(new FacebookScraper());
-orchestrator.register(new TwitterXScraper());
+orchestrator.register(new StubScraper("crunchbase"));
+orchestrator.register(new StubScraper("clutch"));
+orchestrator.register(new StubScraper("behance"));
+orchestrator.register(new StubScraper("dribbble"));
+orchestrator.register(new StubScraper("justdial"));
+orchestrator.register(new StubScraper("indiamart"));
+orchestrator.register(new StubScraper("facebook"));
+orchestrator.register(new StubScraper("twitter_x"));
 
 // Re-export orchestrator and utilities
 export { orchestrator }                                                 from "./base";
