@@ -1,8 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-import { NextResponse } from "next/server";
-import type { NextRequest, NextFetchEvent } from "next/server";
-
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
@@ -13,20 +10,16 @@ const isPublicRoute = createRouteMatcher([
   "/api/inngest(.*)",
 ]);
 
-const clerk = clerkMiddleware(async (auth, request) => {
+export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
+    const authData = await auth();
+    console.log(`[Middleware] Protected route ${request.nextUrl.pathname} | userId: ${authData.userId}`);
     await auth.protect();
+  } else {
+    const authData = await auth();
+    console.log(`[Middleware] Public route ${request.nextUrl.pathname} | userId: ${authData.userId}`);
   }
 });
-
-export default function middleware(request: NextRequest, event: NextFetchEvent) {
-  // Skip Clerk completely if keys are missing (dev mode fallback)
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
-    return NextResponse.next();
-  }
-  
-  return clerk(request, event);
-}
 
 export const config = {
   matcher: [
@@ -34,5 +27,6 @@ export const config = {
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     // Always run for API routes
     "/(api|trpc)(.*)",
+    "/__clerk/:path*",
   ],
 };

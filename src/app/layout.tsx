@@ -1,3 +1,4 @@
+import {ClerkProvider} from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Kanit } from "next/font/google";
 import "./globals.css";
@@ -32,10 +33,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={kanit.variable}>
       <body>
-        <Providers>
+        <ClerkProvider>
+          <Providers>
           {children}
           <Toaster />
-        </Providers>
+          </Providers>
+        </ClerkProvider>
       </body>
     </html>
   );

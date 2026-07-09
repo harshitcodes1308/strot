@@ -18,30 +18,15 @@ import { db } from "@/lib/db";
 // ── Context ─────────────────────────────────────────────
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  let clerkId: string;
+  let clerkId: string = "";
 
-  // 1. Attempt Clerk authentication
-  const hasClerk = !!process.env.CLERK_SECRET_KEY;
-
-  if (hasClerk) {
-    try {
-      const { auth } = await import("@clerk/nextjs/server");
-      const session = await auth();
-      clerkId = session.userId ?? "";
-    } catch {
-      // Clerk middleware not active for this request (e.g. public route)
-      clerkId = "";
-    }
-  } else {
-    // Dev mode — use cookie/header if present, otherwise default dev user
-    const cookies = opts.headers.get("cookie") || "";
-    const match = cookies.match(/(?:^| )simulated-user-id=([^;]+)/);
-    clerkId = match?.[1] || opts.headers.get("x-user-id") || "dev_user_001";
-
-    if (process.env.NODE_ENV === "development") {
-      // Only log once per process, not every request
-      logDevModeOnce();
-    }
+  try {
+    const { auth } = await import("@clerk/nextjs/server");
+    const session = await auth();
+    clerkId = session.userId ?? "";
+  } catch {
+    // Clerk middleware not active for this request (e.g. public route)
+    clerkId = "";
   }
 
   // For public routes that don't require auth, return minimal context
@@ -52,9 +37,8 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   // 2. Ensure user exists in DB
   let dbUser = await db.user.findUnique({ where: { clerkId } });
   if (!dbUser) {
-    const devUserInfo = DEV_USERS[clerkId] ?? { name: "User", email: `${clerkId}@strot.app` };
     dbUser = await db.user.create({
-      data: { clerkId, name: devUserInfo.name, email: devUserInfo.email },
+      data: { clerkId, name: "New User", email: `${clerkId}@strot.app` }, // Can fetch actual from Clerk later
     });
   }
 
@@ -97,25 +81,6 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     ...opts,
   };
 };
-
-// ── Dev-mode helpers ────────────────────────────────────
-
-/** Default dev users for simulated auth (replaces hardcoded userMap) */
-const DEV_USERS: Record<string, { name: string; email: string }> = {
-  dev_user_001: { name: "Test Owner", email: "owner@strot.agency" },
-  // Legacy IDs for backward compat with existing cookies
-  test_user_123: { name: "Test Owner", email: "owner@strot.agency" },
-  test_user_456: { name: "Alice Dev", email: "alice@strot.agency" },
-  test_user_789: { name: "Bob Marketer", email: "bob@strot.agency" },
-};
-
-let devModeLogged = false;
-function logDevModeOnce() {
-  if (!devModeLogged) {
-    console.warn("[Strot] ⚠ Clerk not configured — using dev-mode auth");
-    devModeLogged = true;
-  }
-}
 
 // ── tRPC init ───────────────────────────────────────────
 

@@ -8,12 +8,12 @@ import {
   Rows,
   FolderSimple,
   Gear,
-  SignOut,
   Plus,
   ChartBar,
   Question,
   Briefcase,
 } from "@phosphor-icons/react";
+import { UserButton } from "@clerk/nextjs";
 
 import { trpc } from "@/lib/trpc";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -66,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           {collapsed ? (
             <img
-              src="/logo-icon.png"
+              src="/logo.png"
               alt="Strot Icon"
               style={{ width: 24, height: 24, objectFit: "contain" }}
             />
@@ -190,10 +190,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Question size={15} />
             {!collapsed && <span>Help</span>}
           </button>
-          <button className="nav-item" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", color: "var(--error)", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Sign out" : undefined}>
-            <SignOut size={15} />
-            {!collapsed && <span>Sign out</span>}
-          </button>
+          <div className="nav-item" style={{ width: "100%", justifyContent: collapsed ? "center" : "flex-start", padding: "8px 10px" }} title={collapsed ? "Account" : undefined}>
+            <UserButton showName={!collapsed} appearance={{ elements: { userButtonBox: { width: "100%", justifyContent: collapsed ? "center" : "flex-start" } } }} />
+          </div>
         </div>
       </aside>
 
