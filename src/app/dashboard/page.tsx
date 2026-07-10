@@ -22,7 +22,7 @@ import { LeadStatus, LeadSource } from "@/lib/types";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-type SortKey = "savedAt" | "name" | "status" | "matchScore";
+type SortKey = "savedAt" | "name" | "status" | "opportunityScore";
 
 const STATUS_OPTS: { value: string; label: string; badge: string; dot: string }[] = [
   { value: "new",    label: "New",    badge: "badge-primary", dot: "status-dot-new"    },
@@ -67,7 +67,26 @@ function SourcePills({ sources }: { sources: string[] }) {
 export default function AllLeadsPage() {
   const { data: dbLeads, isLoading, refetch } = trpc.leads.listSaved.useQuery();
 
-  const updateStatusMutation = trpc.leads.updateStatus.useMutation({ onSuccess: () => refetch() });
+  const utils = trpc.useUtils();
+  const updateStatusMutation = trpc.leads.updateStatus.useMutation({
+    onMutate: async (newLead) => {
+      await utils.leads.listSaved.cancel();
+      const previousLeads = utils.leads.listSaved.getData();
+      utils.leads.listSaved.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.map((lead: any) => lead.id === newLead.id ? { ...lead, status: newLead.status } : lead);
+      });
+      return { previousLeads };
+    },
+    onError: (err, newLead, context) => {
+      if (context?.previousLeads) {
+        utils.leads.listSaved.setData(undefined, context.previousLeads);
+      }
+    },
+    onSettled: () => {
+      utils.leads.listSaved.invalidate();
+    },
+  });
   const deleteMutation = trpc.leads.delete.useMutation({ onSuccess: () => refetch() });
   const saveNoteMutation = trpc.leads.updateNotes.useMutation({ onSuccess: () => refetch() });
 
@@ -102,7 +121,8 @@ export default function AllLeadsPage() {
       return {
         ...l,
         savedAt: new Date(l.createdAt),
-        matchScore: l.matchScore ?? 0,
+        opportunityScore: l.opportunityScore ?? 0,
+        buyingSignals: l.buyingSignals ?? [],
         summary: l.description || "",
         tags: [], // Mock fallback
         google,
@@ -129,7 +149,7 @@ export default function AllLeadsPage() {
     return [...res].sort((a: any, b: any) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "status") return a.status.localeCompare(b.status);
-      if (sortBy === "matchScore") return b.matchScore - a.matchScore;
+      if (sortBy === "opportunityScore") return b.opportunityScore - a.opportunityScore;
       return b.savedAt.getTime() - a.savedAt.getTime();
     });
   }, [leads, search, selectedStatus, selectedSource, sortBy]);
@@ -357,7 +377,7 @@ export default function AllLeadsPage() {
                   <option value="savedAt">Date Saved</option>
                   <option value="name">Company Name</option>
                   <option value="status">Status</option>
-                  <option value="matchScore">Smart Match Score</option>
+                  <option value="opportunityScore">Opportunity Score</option>
                 </select>
               </div>
 
@@ -404,7 +424,8 @@ export default function AllLeadsPage() {
                   </button>
                 </th>
                 <th>Company</th>
-                <th>Match Score</th>
+                <th>Contact</th>
+                <th>Opp. Score</th>
                 <th>Status</th>
                 <th>Assignee</th>
                 <th>Sources</th>
@@ -503,13 +524,43 @@ export default function AllLeadsPage() {
                       </div>
                     </td>
 
-                    {/* Match Score */}
+                    {/* Contact (Utmost Priority Phase 2) */}
                     <td>
-                      <div className="flex items-center gap-1.5 font-display font-bold text-sm">
-                        <Sparkle size={12} className="text-[var(--accent)]" />
-                        <span className={lead.matchScore >= 80 ? "text-[var(--success)]" : (lead.matchScore === 0 ? "opacity-50 text-xs font-normal" : "text-white")}>
-                          {lead.matchScore > 0 ? `${lead.matchScore}%` : "Not Run"}
-                        </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {lead.emails && lead.emails.length > 0 && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--success-subtle)", color: "var(--success)", padding: "4px 8px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 600, border: "1px solid var(--success-subtle)", whiteSpace: "nowrap" }}>
+                            <span>✉️</span> {lead.emails[0]}
+                          </div>
+                        )}
+                        {lead.phones && lead.phones.length > 0 && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--primary-subtle)", color: "var(--primary)", padding: "4px 8px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 600, border: "1px solid var(--primary-subtle)", whiteSpace: "nowrap" }}>
+                            <span>📞</span> {lead.phones[0]}
+                          </div>
+                        )}
+                        {(!lead.emails?.length && !lead.phones?.length) && (
+                          <span style={{ fontSize: 11, color: "var(--ink-muted)", fontStyle: "italic" }}>No contact info</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Opportunity Score & Signals */}
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div className="flex items-center gap-1.5 font-display font-bold text-sm">
+                          <Sparkle size={12} className="text-[var(--accent)]" />
+                          <span className={lead.opportunityScore >= 80 ? "text-[var(--success)]" : (lead.opportunityScore === 0 ? "opacity-50 text-xs font-normal" : "text-[var(--ink)]")}>
+                            {lead.opportunityScore > 0 ? `${lead.opportunityScore}/100` : "Not Run"}
+                          </span>
+                        </div>
+                        {lead.buyingSignals && lead.buyingSignals.length > 0 && (
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                            {lead.buyingSignals.slice(0, 2).map((sig: string) => (
+                              <span key={sig} className="badge badge-warning" style={{ fontSize: 9, padding: "2px 4px" }}>
+                                {sig}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -563,6 +614,18 @@ export default function AllLeadsPage() {
                     {/* Actions */}
                     <td>
                       <div style={{ display: "flex", gap: 4 }}>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "4px 6px", fontSize: 11, color: "var(--accent)" }}
+                          title="Run Deep Research"
+                          onClick={() => {
+                            trpc.useUtils().client.research.generateInsights.mutate({ leadId: lead.id })
+                              .then(() => alert("Deep research started in background. The lead will update soon."))
+                              .catch(e => alert("Failed to start research: " + e.message));
+                          }}
+                        >
+                          <Sparkle size={13} weight="fill" />
+                        </button>
                         {lead.domain && (
                           <button
                             className="btn btn-ghost"

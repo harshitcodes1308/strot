@@ -10,7 +10,7 @@ export const deepDiscovery = inngest.createFunction(
     retries: 3 
   },
   async ({ event, step }) => {
-    const { runId, query, location, industry, limit = 20 } = event.data;
+    const { runId, query, location, industry, limit = 60 } = event.data;
 
     // 1. Update run status to running
     await step.run("update-status-running", async () => {
@@ -78,9 +78,10 @@ export const deepDiscovery = inngest.createFunction(
             );
           }
 
-          if (websiteScraper && domain) {
+          if (websiteScraper) {
+            const webQuery = domain ? domain : `${exactName} ${location ?? ""}`.trim();
             tasks.push(
-              websiteScraper.fetch({ query: domain, limit: 1 })
+              websiteScraper.fetch({ query: webQuery, limit: 1 })
                 .then(res => { if (res && res.length > 0) results.push(res[0]); })
                 .catch(e => console.error("Web Scrape failed", e))
             );

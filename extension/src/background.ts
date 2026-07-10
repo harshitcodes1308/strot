@@ -1,14 +1,12 @@
 /// <reference types="chrome"/>
 chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: any) => {
   if (message.type === "ADD_LEAD") {
-    // We send a standard POST to the local TRPC server.
-    // Superjson requires the { "json": payload } wrapper.
-    fetch("http://localhost:3000/api/trpc/leads.save", {
+    fetch("http://localhost:3000/api/extension/leads", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ json: message.payload })
+      body: JSON.stringify(message.payload)
     })
     .then(res => res.json())
     .then(data => {

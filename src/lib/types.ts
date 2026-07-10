@@ -20,7 +20,8 @@ export type LeadSource =
   | "justdial"
   | "indiamart"
   | "facebook"
-  | "twitter_x";
+  | "twitter_x"
+  | "serp";
 
 // Phase 5 sources (not active in Phase 1 UI - kept for backward compat)
 export type Phase5Source = "github" | "product_hunt" | "facebook" | "twitter_x" | "reddit" | "clutch" | "goodfirms" | "crunchbase" | "behance" | "dribbble" | "justdial" | "indiamart" | "job_boards";

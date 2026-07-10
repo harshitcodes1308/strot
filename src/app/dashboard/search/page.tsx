@@ -56,15 +56,33 @@ const KEYWORD_INDUSTRY_MAP: Record<string, string> = {
   "doctor": "Healthcare",
   "gym": "Fitness & Wellness",
   "fitness": "Fitness & Wellness",
+  "yoga": "Fitness & Wellness",
+  "spa": "Fitness & Wellness",
+  "salon": "Fitness & Wellness",
   "school": "Education",
+  "college": "Education",
+  "university": "Education",
   "saas": "Software / SaaS",
   "software": "Software / SaaS",
+  "tech": "Software / SaaS",
   "hotel": "Hospitality",
+  "motel": "Hospitality",
+  "resort": "Hospitality",
   "construction": "Construction",
+  "builder": "Construction",
+  "contractor": "Construction",
+  "plumber": "Construction",
+  "electrician": "Construction",
   "retail": "Retail",
   "shop": "Retail",
+  "store": "Retail",
+  "boutique": "Retail",
   "ecommerce": "E-commerce",
   "e-commerce": "E-commerce",
+  "dentist": "Healthcare",
+  "clinic": "Healthcare",
+  "medical": "Healthcare",
+  "hospital": "Healthcare",
 };
 
 export default function SearchPage() {
@@ -341,7 +359,7 @@ export default function SearchPage() {
                 const resultsCount = rs.resultsCount || 0;
 
                 return (
-                  <motion.div key={rs.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.12 }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: isCompleted ? "var(--success)" : isFailed ? "var(--error)" : "var(--ink-muted)" }}>
+                  <motion.div key={`${rs.id}-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.12 }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: isCompleted ? "var(--success)" : isFailed ? "var(--error)" : "var(--ink-muted)" }}>
                     <span>Deep Discovery</span>
                     {!isCompleted && !isFailed && <CircleNotch size={9} style={{ animation: "spin 0.8s linear infinite" }} />}
                     {isCompleted && <span style={{ marginLeft: 2 }}>({resultsCount} found)</span>}
@@ -429,7 +447,7 @@ export default function SearchPage() {
             <div className="stagger-children">
               {results.map((result, i) => (
                 <SearchResultRow
-                  key={result.id}
+                  key={`${result.id}-${i}`}
                   result={result}
                   isSaved={savedIds.has(result.id) || result.isSaved}
                   onSave={() => toggleSave(result)}
@@ -517,6 +535,25 @@ function SearchResultRow({
           {result.description}
         </p>
 
+        {/* Distinct Contact Information (Utmost Priority Phase 2) */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center" }}>
+          {result.emails && result.emails.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--success-subtle)", color: "var(--success)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 13, fontWeight: 600, border: "1px solid var(--success-subtle)", maxWidth: "100%", overflow: "hidden" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>✉️</span>
+              <a href={`mailto:${result.emails[0]}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "inherit", textDecoration: "none" }} onClick={e => e.stopPropagation()}>{result.emails[0]}</a>
+              {result.emails.length > 1 && <span style={{ opacity: 0.8, fontSize: 11, marginLeft: 4, flexShrink: 0 }} title={result.emails.slice(1).join(", ")}>+{result.emails.length - 1}</span>}
+            </div>
+          )}
+          
+          {result.phones && result.phones.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--primary-subtle)", color: "var(--primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 13, fontWeight: 600, border: "1px solid var(--primary-subtle)", maxWidth: "100%", overflow: "hidden" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>📞</span>
+              <a href={`tel:${result.phones[0]}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "inherit", textDecoration: "none" }} onClick={e => e.stopPropagation()}>{result.phones[0]}</a>
+              {result.phones.length > 1 && <span style={{ opacity: 0.8, fontSize: 11, marginLeft: 4, flexShrink: 0 }} title={result.phones.slice(1).join(", ")}>+{result.phones.length - 1}</span>}
+            </div>
+          )}
+        </div>
+
         {/* Metadata row */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           {/* Sources */}
@@ -555,19 +592,6 @@ function SearchResultRow({
           {result.location && (
             <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
               <MapPin size={10} /> {result.location}
-            </span>
-          )}
-
-          {result.emails && result.emails.length > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
-              <span className="badge badge-success" style={{ fontSize: 9, padding: "2px 4px" }}>{result.emails[0]}</span>
-              {result.emails.length > 1 && <span style={{ fontSize: 9 }}>+{result.emails.length - 1}</span>}
-            </span>
-          )}
-
-          {result.phones && result.phones.length > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--ink-muted)" }}>
-              <span className="badge badge-default" style={{ fontSize: 9, padding: "2px 4px" }}>{result.phones[0]}</span>
             </span>
           )}
 
@@ -610,8 +634,8 @@ function SearchResultRow({
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
           {result.opportunitySignals && result.opportunitySignals.length > 0 && (
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              {result.opportunitySignals.slice(0, 3).map(sig => (
-                <span key={sig} className="badge badge-warning" style={{ fontSize: 10 }}>
+              {result.opportunitySignals.slice(0, 3).map((sig, idx) => (
+                <span key={`${sig}-${idx}`} className="badge badge-warning" style={{ fontSize: 10 }}>
                   {sig}
                 </span>
               ))}
@@ -620,8 +644,8 @@ function SearchResultRow({
           
           {result.painPoints && result.painPoints.length > 0 && (
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              {result.painPoints.map((point, i) => (
-                <span key={i} className="badge badge-error" style={{ fontSize: 10 }}>
+              {result.painPoints.map((point, idx) => (
+                <span key={`pain-${idx}`} className="badge badge-error" style={{ fontSize: 10 }}>
                   ⚠️ {point}
                 </span>
               ))}
@@ -632,8 +656,8 @@ function SearchResultRow({
         {/* Photos Gallery */}
         {result.photos && result.photos.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 4 }}>
-            {result.photos.slice(0, 5).map((photoUrl, i) => (
-              <div key={i} style={{ width: 48, height: 48, borderRadius: "var(--r-md)", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border)" }}>
+            {result.photos.slice(0, 5).map((photoUrl, idx) => (
+              <div key={`photo-${idx}`} style={{ width: 48, height: 48, borderRadius: "var(--r-md)", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border)" }}>
                 <img src={photoUrl} alt="Location" style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
               </div>
             ))}

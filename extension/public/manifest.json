@@ -11,14 +11,18 @@
     "http://localhost:3000/*"
   ],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "src/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["*://*.linkedin.com/*", "*://*.instagram.com/*", "*://*.google.com/maps/*"],
-      "js": ["content.js"],
+      "js": ["src/content.js"],
       "css": ["content.css"]
     }
-  ]
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Save to Strot"
+  }
 }

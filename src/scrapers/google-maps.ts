@@ -11,6 +11,7 @@ import {
   LeadSourceScraper,
   BrowserConfig,
   DEFAULT_BROWSER_CONFIG,
+  withRetry,
 } from "./base";
 import {
   LeadSource,
@@ -51,56 +52,99 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     const limit = params.limit ?? 20;
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
-    if (apiKey) {
-      return this._fetchViaAPI(params, apiKey, limit);
-    }
-
-    return this._fetchViaScraper(params, cfg, limit);
+    return withRetry(async () => {
+      let results: RawLeadData[] = [];
+      if (apiKey) {
+        try {
+          results = await this._fetchViaAPI(params, apiKey, limit);
+        } catch (e) {
+          console.warn("[GoogleMaps] API failed, falling back to scraper", e);
+        }
+      }
+      // If API yielded fewer than limit (e.g. pagination failed), use Playwright to get more
+      if (results.length < limit) {
+        try {
+          const scraperResults = await this._fetchViaScraper(params, cfg, limit);
+          // Append and deduplicate by name
+          const seen = new Set(results.map(r => r.raw.place?.displayName?.text || ""));
+          for (const sr of scraperResults) {
+            const name = (sr.raw as any).html ? (sr.raw as any).html.match(/class="qBF1Pd"[^>]*>([^<]+)/)?.[1] : "";
+            if (name && !seen.has(name)) {
+              results.push(sr);
+            }
+          }
+        } catch (e) {
+          console.warn("[GoogleMaps] Scraper fallback failed", e);
+        }
+      }
+      return results.slice(0, limit);
+    }, cfg.retries, cfg.retryDelayMs);
   }
 
-  /** Google Places API v1 (New) - Text Search */
   private async _fetchViaAPI(
     params: ScraperParams,
     apiKey: string,
     limit: number
   ): Promise<RawLeadData[]> {
     const textQuery = [params.query, params.location].filter(Boolean).join(" in ");
-    const body = {
-      textQuery,
-      maxResultCount: Math.min(limit, 20),
-      languageCode: "en",
-    };
+    const allPlaces: GooglePlaceResult[] = [];
+    let pageToken: string | undefined = undefined;
 
-    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": [
-          "places.id",
-          "places.displayName",
-          "places.formattedAddress",
-          "places.rating",
-          "places.userRatingCount",
-          "places.primaryType",
-          "places.nationalPhoneNumber",
-          "places.websiteUri",
-          "places.businessStatus",
-          "places.regularOpeningHours.weekdayDescriptions",
-          "places.photos",
-          "places.reviews",
-        ].join(","),
-      },
-      body: JSON.stringify(body),
-    });
+    while (allPlaces.length < limit) {
+      const body: any = {
+        textQuery,
+        maxResultCount: 20, // API max per page
+        languageCode: "en",
+      };
+      if (pageToken) {
+        body.pageToken = pageToken;
+      }
 
-    if (!response.ok) {
-      console.error(`[GoogleMaps] Places API error: ${response.status} ${await response.text()}`);
-      return [];
+      const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": [
+            "places.id",
+            "places.displayName",
+            "places.formattedAddress",
+            "places.rating",
+            "places.userRatingCount",
+            "places.primaryType",
+            "places.nationalPhoneNumber",
+            "places.websiteUri",
+            "places.businessStatus",
+            "places.regularOpeningHours.weekdayDescriptions",
+            "places.photos",
+            "places.reviews",
+            "nextPageToken",
+          ].join(","),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const msg = `[GoogleMaps] Places API error: ${response.status} ${await response.text()}`;
+        console.error(msg);
+        throw new Error(msg);
+      }
+
+      const data = await response.json() as { places?: GooglePlaceResult[], nextPageToken?: string };
+      if (data.places) {
+        allPlaces.push(...data.places);
+      }
+
+      if (data.nextPageToken && allPlaces.length < limit) {
+        pageToken = data.nextPageToken;
+        // Google requires a short delay before using nextPageToken
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        break;
+      }
     }
 
-    const data = await response.json() as { places?: GooglePlaceResult[] };
-    return (data.places ?? []).map(place => ({
+    return allPlaces.slice(0, limit).map(place => ({
       sourceId: "google_maps" as LeadSource,
       raw: { place },
     }));
@@ -154,7 +198,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
       return rawItems;
     } catch (e: any) {
       console.warn(`[GoogleMaps] Playwright error:`, e.message);
-      return [];
+      throw e;
     }
   }
 
@@ -194,7 +238,9 @@ export class GoogleMapsScraper implements LeadSourceScraper {
 
       google.reviews = rawReviews;
 
+      const id = `google-${place.id || require("crypto").createHash("md5").update(place.displayName.text).digest("hex")}`;
       return {
+        id,
         name:        place.displayName.text,
         domain,
         description: `${humanizeCategory(place.primaryType ?? "")} - ${place.formattedAddress}. ${place.rating}★ (${place.userRatingCount} reviews).`,
@@ -221,7 +267,9 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     const domain = website ? website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] : null;
     const google: GoogleMapsData = { rating, reviewCount, category, address, phone, website };
     
+    const id = `google-${require("crypto").createHash("md5").update(name + address).digest("hex")}`;
     return { 
+      id,
       name, 
       domain, 
       description: `${category} - ${address}. ${rating}★ (${reviewCount} reviews).`, 
@@ -244,7 +292,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
     if (g?.reviewCount) dataCompleteness += 10;
 
     return {
-      id: lead.id || `google-${g?.placeId ?? (lead.domain || "unknown").replace(/\./g, "-")}`,
+      id: lead.id || `google-${g?.placeId ?? (lead.domain ?? Math.random().toString(36).slice(2)).replace(/\./g, "-")}`,
       name: lead.name,
       domain: lead.domain ?? null,
       description: lead.description ?? null,

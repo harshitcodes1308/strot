@@ -79,3 +79,10 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 injectButton();
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "GET_PAGE_DATA") {
+    sendResponse(extractLeadData());
+  }
+  return true;
+});

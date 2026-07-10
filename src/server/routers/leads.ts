@@ -78,28 +78,34 @@ export const leadsRouter = createTRPCRouter({
         // 1. Blacklist check
         if (lead.domain && isBlacklisted(lead.domain)) return false;
         
-        // 2. Strict Quality Control (The Waterfall Criteria)
-        const hasGBP = !!lead.google?.placeId || !!lead.google?.rating;
+        // 2. Strict Quality Control
         const hasPhone = lead.phones && lead.phones.length > 0;
         const hasEmail = lead.emails && lead.emails.length > 0;
-        const hasSocial = !!(lead.socialProfiles?.instagram || lead.socialProfiles?.linkedin);
         
-        // The user wants leads for ANY industry, but previously asked for strict Phone & Email.
-        // We relax this to require GBP AND (Phone OR Email OR Social) so that gyms and plumbers don't return 0 results.
-        if (!hasGBP) return false;
-        if (!hasPhone && !hasEmail && !hasSocial) return false;
+        // PER PHASE 2 UPDATE: If they have at least a phone OR an email, keep them.
+        if (!hasPhone && !hasEmail) return false;
+
+        // Ensure it's a real local business from Google Maps, not a stray SERP result
+        if (!lead.sources.includes("google_maps")) return false;
 
         return true;
       });
     }),
 
   listSaved: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.lead.findMany({
+    const leads = await ctx.db.lead.findMany({
       where: { workspaceId: ctx.workspaceId },
       include: {
         assignedTo: true,
       },
       orderBy: { createdAt: "desc" },
+    });
+    
+    // PER PHASE 2: Filter out saved leads that do not have both phone and email
+    return leads.filter(lead => {
+      const hasPhone = lead.phones && lead.phones.length > 0;
+      const hasEmail = lead.emails && lead.emails.length > 0;
+      return hasPhone && hasEmail;
     });
   }),
   

@@ -6,6 +6,8 @@
 import {
   LeadSourceScraper,
   BrowserConfig,
+  DEFAULT_BROWSER_CONFIG,
+  withRetry,
   computeCompleteness,
 } from "./base";
 import {
@@ -15,6 +17,7 @@ import {
   RawLeadData,
   NormalizedLead,
 } from "@/lib/types";
+import { searchDuckDuckGo } from "@/lib/ddg-search";
 import { computeOpportunitySignals } from "./signals";
 import crypto from "crypto";
 
@@ -27,30 +30,46 @@ export class InstagramScraper implements LeadSourceScraper {
     params: ScraperParams,
     config?: Partial<BrowserConfig>
   ): Promise<RawLeadData[]> {
+    const cfg = { ...DEFAULT_BROWSER_CONFIG, ...config };
     const limit = params.limit ?? 5;
     const serpKey = process.env.SERP_API_KEY;
 
-    if (!serpKey) {
-      console.warn("[InstagramScraper] SERP_API_KEY not set. Returning empty.");
-      return [];
-    }
-
-    // Use quotes for exact business/niche name and exclude posts/reels to strictly find profile pages
-    const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(`site:instagram.com "${params.query}" ${params.location || ""} -inurl:p -inurl:reel -inurl:explore`)}&api_key=${serpKey}&num=${limit}`;
-    
-    try {
-      const res = await fetch(searchUrl);
-      if (!res.ok) return [];
-      const data = await res.json();
-      
-      const results = data.organic_results ?? [];
-      return results.map((r: any) => ({
-        sourceId: this.id,
-        raw: r
-      }));
-    } catch (e) {
-      console.error("[InstagramScraper] Error fetching:", e);
-      return [];
+    if (serpKey) {
+      return withRetry(async () => {
+        const searchQuery = `site:instagram.com ${params.query} ${params.location || ""}`.trim();
+        const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(searchQuery)}&api_key=${serpKey}&num=${limit}`;
+        
+        try {
+          const res = await fetch(searchUrl);
+          if (!res.ok) {
+            throw new Error(`[InstagramScraper] API error: ${res.status}`);
+          }
+          const data = await res.json();
+          
+          const results = data.organic_results ?? [];
+          return results.map((r: any) => ({
+            sourceId: this.id,
+            raw: r
+          }));
+        } catch (e) {
+          console.error("[InstagramScraper] Error fetching:", e);
+          throw e;
+        }
+      }, cfg.retries, cfg.retryDelayMs);
+    } else {
+      // Fallback to DuckDuckGo Free Search
+      return withRetry(async () => {
+        const searchQuery = `site:instagram.com ${params.query} ${params.location || ""}`.trim();
+        const results = await searchDuckDuckGo(searchQuery, limit);
+        return results.map((r: any) => ({
+          sourceId: this.id,
+          raw: {
+            title: r.title,
+            link: r.link,
+            snippet: r.snippet
+          }
+        }));
+      }, cfg.retries, cfg.retryDelayMs);
     }
   }
 
@@ -95,15 +114,36 @@ export class InstagramScraper implements LeadSourceScraper {
     const emails: string[] = [];
     const phones: string[] = [];
     if (data.snippet) {
-      const emailMatches = data.snippet.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
+      const EMAIL_REGEX = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,7}\b/gi;
+      const BLACKLIST = ["sentry.io", "example.com", "domain.com", "wixpress.com", "wix.com", "cloudflare.com", "test.com", "yourdomain.com", "company.com", "name.com", "email.com", "mysite.com"];
+      const emailMatches = data.snippet.match(EMAIL_REGEX);
+      
+      const isValidEmail = (e: string) => {
+        const lower = e.toLowerCase();
+        if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.svg') || lower.endsWith('.webp') || lower.endsWith('.jpeg') || lower.endsWith('.gif')) return false;
+        if (BLACKLIST.some(domain => lower.includes(`@${domain}`))) return false;
+        if (lower.startsWith("user@") || lower.startsWith("email@") || lower.startsWith("info@example") || lower.startsWith("test@") || lower.startsWith("yourname@")) return false;
+        if ((lower.match(/@/g) || []).length !== 1) return false;
+        if (lower.length > 50 || /^[a-f0-9]{15,}@/i.test(lower)) return false;
+        return true;
+      };
+
       if (emailMatches) {
-        emailMatches.forEach((e: string) => emails.push(e.toLowerCase()));
+        emailMatches.forEach((e: string) => {
+          if (isValidEmail(e)) emails.push(e.toLowerCase());
+        });
       }
       
-      const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
-      const phoneMatches = data.snippet.match(phoneRegex);
-      if (phoneMatches) {
-        phoneMatches.forEach((p: string) => phones.push(p.trim()));
+      const phoneRegex = /(?:tel:|Call us:|Phone:)?\s*(\+?\d{1,3}?[-.\s]?\(?\d{1,4}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})\b/gi;
+      let phoneMatch;
+      while ((phoneMatch = phoneRegex.exec(data.snippet)) !== null) {
+        const p = phoneMatch[1].trim();
+        const digits = p.replace(/\D/g, "");
+        if (digits.length >= 10 && digits.length <= 15) {
+          if (!/^\d{10,}$/.test(p.replace(/\s/g, ""))) {
+            phones.push(p);
+          }
+        }
       }
     }
     

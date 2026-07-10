@@ -27,16 +27,9 @@
 import { orchestrator, LeadSourceScraper } from "./base";
 import { RawLeadData, SearchResult, ScraperParams, NormalizedLead, LeadSource } from "@/lib/types";
 
-class StubScraper implements LeadSourceScraper {
-  public label: string;
-  public selectors = {};
-  constructor(public id: LeadSource) {
-    this.label = id.charAt(0).toUpperCase() + id.slice(1);
-  }
-  async fetch(): Promise<RawLeadData[]> { return []; }
-  parse(): NormalizedLead { throw new Error("Stub scraper should not be parsed"); }
-  normalize(): SearchResult { throw new Error("Stub scraper should not be normalized"); }
-}
+// Phase 5 scrapers fallback
+import { SerpSiteScraper } from "./serp-site";
+import { SerpDiscoveryScraper } from "./serp-discovery";
 
 // Phase 1 scrapers
 import { LinkedInScraper }    from "./linkedin";
@@ -69,15 +62,16 @@ orchestrator.register(new ProductHuntScraper());
 orchestrator.register(new RedditScraper());
 orchestrator.register(new JobBoardsScraper());
 
-// Register Phase 5 - stubs (return empty; log manual/beta notice)
-orchestrator.register(new StubScraper("crunchbase"));
-orchestrator.register(new StubScraper("clutch"));
-orchestrator.register(new StubScraper("behance"));
-orchestrator.register(new StubScraper("dribbble"));
-orchestrator.register(new StubScraper("justdial"));
-orchestrator.register(new StubScraper("indiamart"));
-orchestrator.register(new StubScraper("facebook"));
-orchestrator.register(new StubScraper("twitter_x"));
+// Register Phase 5 - SERP Fallbacks (replacing stubs)
+orchestrator.register(new SerpSiteScraper("crunchbase", "Crunchbase", "site:crunchbase.com/organization"));
+orchestrator.register(new SerpSiteScraper("clutch", "Clutch", "site:clutch.co/profile"));
+orchestrator.register(new SerpSiteScraper("behance", "Behance", "site:behance.net"));
+orchestrator.register(new SerpSiteScraper("dribbble", "Dribbble", "site:dribbble.com"));
+orchestrator.register(new SerpSiteScraper("justdial", "JustDial", "site:justdial.com"));
+orchestrator.register(new SerpSiteScraper("indiamart", "IndiaMART", "site:indiamart.com/proddetail OR site:dir.indiamart.com"));
+orchestrator.register(new SerpSiteScraper("facebook", "Facebook", "site:facebook.com"));
+orchestrator.register(new SerpSiteScraper("twitter_x", "Twitter / X", "site:x.com OR site:twitter.com"));
+orchestrator.register(new SerpDiscoveryScraper());
 
 // Re-export orchestrator and utilities
 export { orchestrator }                                                 from "./base";

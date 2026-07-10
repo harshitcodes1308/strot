@@ -12,6 +12,7 @@ import {
   ChartBar,
   Question,
   Briefcase,
+  Heartbeat,
 } from "@phosphor-icons/react";
 import { UserButton } from "@clerk/nextjs";
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/folders",icon: FolderSimple,    label: "Folders"      },
   { href: "/dashboard/agency-profile", icon: Briefcase, label: "Agency Profile" },
   { href: "/dashboard/analytics", icon: ChartBar,     label: "Analytics"    },
+  { href: "/dashboard/monitor",   icon: Heartbeat,    label: "Health Monitor" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

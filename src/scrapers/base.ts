@@ -52,6 +52,30 @@ export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
   },
 };
 
+/**
+ * Wrapper to execute a function with retries and exponential backoff.
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries: number = DEFAULT_BROWSER_CONFIG.retries,
+  delayMs: number = DEFAULT_BROWSER_CONFIG.retryDelayMs
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (attempt > retries) {
+        throw error;
+      }
+      const backoffDelay = delayMs * Math.pow(2, attempt - 1);
+      console.warn(`Scraper attempt ${attempt} failed. Retrying in ${backoffDelay}ms...`, error);
+      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+    }
+  }
+}
+
 // ─── Core LeadSource interface ────────────────────────────────────────────────
 
 export interface LeadSourceScraper {

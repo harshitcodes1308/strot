@@ -16,7 +16,7 @@ async function main() {
   const linkedinScraper = orchestrator.getScraper("linkedin");
   const websiteScraper = orchestrator.getScraper("website");
 
-  const results = [];
+  const results: any[] = [];
   
   await Promise.all(anchorLeads.map(async (anchor: any) => {
     console.log("Processing anchor:", anchor.raw?.title || anchor.raw?.name);
@@ -88,7 +88,7 @@ async function main() {
   const deduplicated = deduplicateResults(parsedResults);
   console.log("Deduplicated total:", deduplicated.length);
 
-  const finalFiltered = deduplicated.filter(lead => {
+  const finalFiltered = deduplicated.filter((lead: any) => {
     const hasGBP = !!lead.google?.placeId || !!lead.google?.rating;
     const hasPhone = lead.phones && lead.phones.length > 0;
     const hasEmail = lead.emails && lead.emails.length > 0;

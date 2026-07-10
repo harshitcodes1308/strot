@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { guessEmails } from "@/scrapers/enrichment/email-guesser";
 import { verifyEmail } from "@/scrapers/enrichment/smtp-verifier";
 import { extractPainPoints } from "@/scrapers/enrichment/pain-points";
+import { findEmailViaSocial } from "@/scrapers/enrichment/social-email";
 
 export const enrichLead = inngest.createFunction(
   { 
@@ -36,6 +37,14 @@ export const enrichLead = inngest.createFunction(
     emailsToTest.add(`info@${domain}`);
     emailsToTest.add(`hello@${domain}`);
     emailsToTest.add(`contact@${domain}`);
+
+    // If we still have very few emails, try social fallback
+    if (emailsToTest.size < 2) {
+      await step.run("social-email-fallback", async () => {
+        const socialEmails = await findEmailViaSocial(name, domain);
+        socialEmails.forEach(e => emailsToTest.add(e));
+      });
+    }
 
     const verifiedEmails: string[] = [];
     const contactSources: any = typeof lead.contactSources === 'object' && lead.contactSources !== null 
