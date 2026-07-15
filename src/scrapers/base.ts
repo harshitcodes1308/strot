@@ -169,16 +169,55 @@ export function areDuplicates(a: SearchResult, b: SearchResult): boolean {
   const normA = normalizeDomain(a.domain);
   const normB = normalizeDomain(b.domain);
   
-  // Only match on domain if BOTH leads actually have a valid domain
+  // 1. Domain match
   if (normA && normB && normA === normB) {
     return true;
   }
 
-  const nameSim = jaroWinkler(a.name, b.name);
+  // 2. Phone match
+  const aPhones = (a.phones || []).map(p => p.replace(/\D/g, ""));
+  const bPhones = (b.phones || []).map(p => p.replace(/\D/g, ""));
+  if (aPhones.length > 0 && bPhones.length > 0) {
+    if (aPhones.some(ap => bPhones.includes(ap))) return true;
+  }
+
+  // 3. Email match
+  const aEmails = (a.emails || []).map(e => e.toLowerCase().trim());
+  const bEmails = (b.emails || []).map(e => e.toLowerCase().trim());
+  if (aEmails.length > 0 && bEmails.length > 0) {
+    if (aEmails.some(ae => bEmails.includes(ae))) return true;
+  }
+
+  // 4. Social Profile match
+  const aSocials = Object.values(a.socialProfiles || {}).filter(Boolean);
+  const bSocials = Object.values(b.socialProfiles || {}).filter(Boolean);
+  if (aSocials.length > 0 && bSocials.length > 0) {
+    if (aSocials.some(as => bSocials.includes(as as string))) return true;
+  }
+
+  // 5. Name match (clean names first)
+  const cleanName = (name: string) => {
+    return name.toLowerCase()
+      .replace(/\s+(llc|inc|corp|co|ltd|pvt)\.?$/i, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+  };
+
+  const nameA = cleanName(a.name);
+  const nameB = cleanName(b.name);
+  
+  const nameSim = jaroWinkler(nameA, nameB);
   
   // If they have similar names AND share the same city/location (if provided), or very high name similarity
-  if (nameSim >= 0.92) {
+  if (nameSim >= 0.88) {
     return true;
+  }
+
+  // If one name is fully contained in the other and is at least 5 chars long
+  if (nameA.length > 4 && nameB.length > 4) {
+    if (nameA.includes(nameB) || nameB.includes(nameA)) {
+      return true;
+    }
   }
 
   return false;
@@ -356,6 +395,7 @@ export class ScraperOrchestrator {
         query: params.query,
         location: params.location,
         industry: params.industry,
+        sources: enabledSources,
       },
     });
 

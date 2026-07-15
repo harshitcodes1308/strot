@@ -66,7 +66,7 @@ export class GoogleMapsScraper implements LeadSourceScraper {
         try {
           const scraperResults = await this._fetchViaScraper(params, cfg, limit);
           // Append and deduplicate by name
-          const seen = new Set(results.map(r => r.raw.place?.displayName?.text || ""));
+          const seen = new Set(results.map(r => (r.raw as any)?.place?.displayName?.text || ""));
           for (const sr of scraperResults) {
             const name = (sr.raw as any).html ? (sr.raw as any).html.match(/class="qBF1Pd"[^>]*>([^<]+)/)?.[1] : "";
             if (name && !seen.has(name)) {

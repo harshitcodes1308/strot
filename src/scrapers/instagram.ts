@@ -32,45 +32,19 @@ export class InstagramScraper implements LeadSourceScraper {
   ): Promise<RawLeadData[]> {
     const cfg = { ...DEFAULT_BROWSER_CONFIG, ...config };
     const limit = params.limit ?? 5;
-    const serpKey = process.env.SERP_API_KEY;
 
-    if (serpKey) {
-      return withRetry(async () => {
-        const searchQuery = `site:instagram.com ${params.query} ${params.location || ""}`.trim();
-        const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(searchQuery)}&api_key=${serpKey}&num=${limit}`;
-        
-        try {
-          const res = await fetch(searchUrl);
-          if (!res.ok) {
-            throw new Error(`[InstagramScraper] API error: ${res.status}`);
-          }
-          const data = await res.json();
-          
-          const results = data.organic_results ?? [];
-          return results.map((r: any) => ({
-            sourceId: this.id,
-            raw: r
-          }));
-        } catch (e) {
-          console.error("[InstagramScraper] Error fetching:", e);
-          throw e;
+    return withRetry(async () => {
+      const searchQuery = `site:instagram.com ${params.query} ${params.location || ""}`.trim();
+      const results = await searchDuckDuckGo(searchQuery, limit);
+      return results.map((r: any) => ({
+        sourceId: this.id,
+        raw: {
+          title: r.title,
+          link: r.link,
+          snippet: r.snippet
         }
-      }, cfg.retries, cfg.retryDelayMs);
-    } else {
-      // Fallback to DuckDuckGo Free Search
-      return withRetry(async () => {
-        const searchQuery = `site:instagram.com ${params.query} ${params.location || ""}`.trim();
-        const results = await searchDuckDuckGo(searchQuery, limit);
-        return results.map((r: any) => ({
-          sourceId: this.id,
-          raw: {
-            title: r.title,
-            link: r.link,
-            snippet: r.snippet
-          }
-        }));
-      }, cfg.retries, cfg.retryDelayMs);
-    }
+      }));
+    }, cfg.retries, cfg.retryDelayMs);
   }
 
   parse(raw: RawLeadData): NormalizedLead {

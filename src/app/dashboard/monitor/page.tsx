@@ -1,7 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { Heartbeat, Activity, WarningCircle, CheckCircle, ShieldCheck, ShieldWarning } from "@phosphor-icons/react";
+import { Heartbeat, WarningCircle, CheckCircle, ShieldCheck, ShieldWarning } from "@phosphor-icons/react";
 import Link from "next/link";
 
 export default function MonitorDashboardPage() {
@@ -41,7 +41,7 @@ export default function MonitorDashboardPage() {
           disabled={runChecksMutation.isPending}
           className="btn btn-primary flex items-center gap-2 text-xs px-4 py-2"
         >
-          <Activity size={16} />
+          <Heartbeat size={16} />
           {runChecksMutation.isPending ? "Running Checks..." : "Force Check All Now"}
         </button>
       </header>

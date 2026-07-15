@@ -6,7 +6,7 @@ import { SearchResult } from "@/lib/types";
 import { recommendServices } from "@/lib/ai/recommend";
 
 export const leadsRouter = createTRPCRouter({
-  // Phase 1 MVP Search (Executes live scraping orchestrator)
+  // Phase 1 MVP Search (Executes V2 live scraping orchestrator)
   search: protectedProcedure
     .input(z.object({
       query: z.string(),
@@ -16,17 +16,48 @@ export const leadsRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        const runIds = await orchestrator.search(
-          {
+        const { inngest } = await import("@/inngest/client");
+        const cacheKey = input.location ? `${input.query} in ${input.location}` : input.query;
+
+        // TTL Check: Don't re-scrape the exact same query + location within 24 hours
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const recentRun = await ctx.db.scraperRun.findFirst({
+          where: {
+            workspaceId: ctx.workspaceId,
+            source: "deep-discovery",
+            query: cacheKey,
+            status: "completed",
+            completedAt: { gte: twentyFourHoursAgo },
+          },
+        });
+
+        if (recentRun) {
+          return [recentRun.id];
+        }
+
+        const run = await ctx.db.scraperRun.create({
+          data: {
+            workspaceId: ctx.workspaceId,
+            userId: ctx.userId,
+            source: "deep-discovery",
+            query: cacheKey,
+            status: "pending",
+          },
+        });
+
+        await inngest.send({
+          name: "scraper/v2.search",
+          data: {
+            runId: run.id,
             query: input.query,
             location: input.location,
-            industry: input.industry,
+            limit: 25, // You could get this from a new parameter if UI supports it
+            workspaceId: ctx.workspaceId,
+            userId: ctx.userId
           },
-          input.sources as any,
-          { workspaceId: ctx.workspaceId, userId: ctx.userId }
-        );
-        
-        return runIds;
+        });
+
+        return [run.id];
       } catch (error: any) {
         console.error("Scraper orchestrator failed to enqueue:", error);
         // Provide a clearer error message for local development issues
@@ -36,6 +67,23 @@ export const leadsRouter = createTRPCRouter({
           : "Failed to start search. Please try again.");
       }
     }),
+
+  // Fetch daily quota usage
+  getDailyQuota: protectedProcedure.query(async ({ ctx }) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const count = await ctx.db.lead.count({
+      where: {
+        workspaceId: ctx.workspaceId,
+        createdAt: { gte: today }
+      }
+    });
+    return {
+      used: count,
+      limit: 25,
+      remaining: Math.max(0, 25 - count)
+    };
+  }),
 
   // Phase 2: Polling for background scraper status
   getScraperStatus: protectedProcedure
@@ -52,7 +100,7 @@ export const leadsRouter = createTRPCRouter({
   // Phase 2: Fetch and deduplicate results from completed runs
   getScraperResults: protectedProcedure
     .input(z.object({ runIds: z.array(z.string()) }))
-    .mutation(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
       const rawResults = await ctx.db.rawScraperResult.findMany({
         where: {
           scraperRunId: { in: input.runIds },
@@ -63,6 +111,26 @@ export const leadsRouter = createTRPCRouter({
       // Parse them back into SearchResult objects
       const parsedResults: SearchResult[] = [];
       for (const result of rawResults) {
+        if (result.source === "google_places_v2") {
+          // V2 scraper stores the pre-computed SearchResult directly in rawData
+          const searchResult = result.rawData as unknown as SearchResult;
+          
+          // Map back to standard sources for the UI icons to work
+          searchResult.source = "google_maps";
+          const activeSources = ["google_maps"];
+          if (searchResult.hasWebsite) activeSources.push("website");
+          if (searchResult.socialProfiles && Object.keys(searchResult.socialProfiles).length > 0) {
+            if (searchResult.socialProfiles.instagram) activeSources.push("instagram");
+            if (searchResult.socialProfiles.linkedin) activeSources.push("linkedin");
+            if (searchResult.socialProfiles.facebook) activeSources.push("website"); // fallback for facebook
+            if (searchResult.socialProfiles.twitter) activeSources.push("website"); // fallback for x
+          }
+          searchResult.sources = activeSources as any[];
+          
+          parsedResults.push(searchResult);
+          continue;
+        }
+
         const scraper = orchestrator.getScraper(result.source as any);
         if (scraper) {
           const normalized = scraper.parse(result.rawData as any);
@@ -78,16 +146,8 @@ export const leadsRouter = createTRPCRouter({
         // 1. Blacklist check
         if (lead.domain && isBlacklisted(lead.domain)) return false;
         
-        // 2. Strict Quality Control
-        const hasPhone = lead.phones && lead.phones.length > 0;
-        const hasEmail = lead.emails && lead.emails.length > 0;
-        
-        // PER PHASE 2 UPDATE: If they have at least a phone OR an email, keep them.
-        if (!hasPhone && !hasEmail) return false;
-
-        // Ensure it's a real local business from Google Maps, not a stray SERP result
-        if (!lead.sources.includes("google_maps")) return false;
-
+        // We no longer strictly filter by phone/email or google_maps on discovery, 
+        // because the background Enrichment Pipeline will find that data!
         return true;
       });
     }),

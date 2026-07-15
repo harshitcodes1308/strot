@@ -31,7 +31,7 @@ export const generateOutreach = inngest.createFunction(
       // For MVP, we can append these to the notes, or if there's a draft field, save them there.
       // Assuming no draft field currently, append to notes.
       const currentNotes = lead.notes ? lead.notes + "\n\n" : "";
-      const outreachNotes = `--- AI GENERATED OUTREACH ---\n\n[Email Draft]\nSubject: ${emailDraft.subject}\n\n${emailDraft.body}\n\n[LinkedIn Draft]\n\n${linkedinDraft.body}`;
+      const outreachNotes = `--- AI GENERATED OUTREACH ---\n\n[Email Draft]\n\n${emailDraft}\n\n[LinkedIn Draft]\n\n${linkedinDraft}`;
       
       await db.lead.update({
         where: { id: lead.id },

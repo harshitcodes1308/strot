@@ -60,41 +60,24 @@ export class WebsiteScraper implements LeadSourceScraper {
   ): Promise<RawLeadData[]> {
     const cfg = { ...DEFAULT_BROWSER_CONFIG, ...config };
     const limit = params.limit ?? 10;
-    const serpKey = process.env.SERP_API_KEY;
 
-    if (serpKey) {
-      return withRetry(async () => {
-        const searchUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(params.query + " " + (params.location ?? ""))}&api_key=${serpKey}&num=${limit}`;
-        const res = await fetch(searchUrl);
-        if (!res.ok) throw new Error(`[WebsiteScraper] SERP API error: ${res.status}`);
-        const data = await res.json();
-      
-        const urls: string[] = (data.organic_results ?? [])
-          .map((r: any) => r.link)
-          .filter((url: string) => !isBlacklisted(url));
-      
-        return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
-      }, cfg.retries, cfg.retryDelayMs);
-    } else {
-      // DuckDuckGo fallback
-      const isDomain = params.query.includes(".") && !params.query.includes(" ");
-      if (isDomain) {
-        return [await this._crawlUrl(params.query, cfg)];
-      }
-
-      const { url } = params as any;
-      if (url) {
-        return [await this._crawlUrl(url, cfg)];
-      }
-
-      // We don't have a URL, so we search DDG for the query
-      return withRetry(async () => {
-        const results = await searchDuckDuckGo(`${params.query} ${params.location ?? ""}`.trim(), limit);
-        const urls = results.map(r => r.link).filter(link => !isBlacklisted(link));
-        if (urls.length === 0) return [];
-        return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
-      }, cfg.retries, cfg.retryDelayMs);
+    const isDomain = params.query.includes(".") && !params.query.includes(" ");
+    if (isDomain) {
+      return [await this._crawlUrl(params.query, cfg)];
     }
+
+    const { url } = params as any;
+    if (url) {
+      return [await this._crawlUrl(url, cfg)];
+    }
+
+    // We don't have a URL, so we search DDG for the query
+    return withRetry(async () => {
+      const results = await searchDuckDuckGo(`${params.query} ${params.location ?? ""}`.trim(), limit);
+      const urls = results.map(r => r.link).filter(link => !isBlacklisted(link));
+      if (urls.length === 0) return [];
+      return await Promise.all(urls.slice(0, limit).map(url => this._crawlUrl(url, cfg)));
+    }, cfg.retries, cfg.retryDelayMs);
   }
 
   private async _crawlUrl(
@@ -191,28 +174,64 @@ export class WebsiteScraper implements LeadSourceScraper {
           }
         }
 
-        // Deep Spidering: If we missed email/phone, crawl up to 2 contact/about subpages
-        if (emailsSet.size === 0 || phonesSet.size === 0) {
-          const internalLinks = html.match(/href="(\/[^"]*(contact|about|team)[^"]*)"/gi) || [];
-          const absRegex = new RegExp(`href="(https?://(?:www\\.)?${new URL(url).hostname}/[^"]*(?:contact|about|team)[^"]*)"`, 'gi');
+        // Deep Spidering & Structured Data (JSON-LD)
+        const jsonLdMatches = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi) || [];
+        for (const script of jsonLdMatches) {
+          try {
+            const content = script.replace(/<script[^>]*>|<\/script>/gi, "").trim();
+            const json = JSON.parse(content);
+            const walk = (obj: any) => {
+              if (!obj || typeof obj !== "object") return;
+              if (obj.email && isValidEmail(obj.email)) emailsSet.add(obj.email.toLowerCase());
+              if (obj.telephone) phonesSet.add(obj.telephone);
+              if (obj.sameAs) {
+                const arr = Array.isArray(obj.sameAs) ? obj.sameAs : [obj.sameAs];
+                arr.forEach((link: string) => socialsSet.add(link));
+              }
+              Object.values(obj).forEach(walk);
+            };
+            walk(json);
+          } catch(e) {}
+        }
+
+        // We check for deepCrawl in config or if fields are missing
+        const isDeep = (cfg as any).deepCrawl || emailsSet.size === 0 || phonesSet.size === 0 || socialsSet.size === 0;
+        
+        if (isDeep) {
+          // Find standard links
+          const contactPaths = ["/contact", "/contact-us", "/about", "/about-us", "/team", "/privacy", "/imprint", "/company"];
+          
+          const internalLinks = html.match(/href="(\/[^"]*)"/gi) || [];
+          const absRegex = new RegExp(`href="(https?://(?:www\\.)?${new URL(url).hostname}/[^"]*)"`, 'gi');
           const absLinks = html.match(absRegex) || [];
           
           const uniqueLinks = new Set<string>();
+          
+          // Add standard paths explicitly
+          contactPaths.forEach(path => {
+            uniqueLinks.add(new URL(path, url).toString());
+          });
+
           internalLinks.forEach(m => {
             const link = m.replace(/href="/i, "").replace(/"$/, "").trim();
-            uniqueLinks.add(new URL(link, url).toString());
-          });
-          absLinks.forEach(m => {
-            const link = m.replace(/href="/i, "").replace(/"$/, "").trim();
-            uniqueLinks.add(link);
+            if (contactPaths.some(p => link.includes(p.replace("/", "")))) {
+              uniqueLinks.add(new URL(link, url).toString());
+            }
           });
           
-          const linksToCrawl = Array.from(uniqueLinks).slice(0, 2);
+          absLinks.forEach(m => {
+            const link = m.replace(/href="/i, "").replace(/"$/, "").trim();
+            if (contactPaths.some(p => link.includes(p.replace("/", "")))) {
+              uniqueLinks.add(link);
+            }
+          });
+          
+          const linksToCrawl = Array.from(uniqueLinks).slice(0, 4); // Max 4 deep pages
           await Promise.all(linksToCrawl.map(async (subUrl) => {
             try {
               const subRes = await fetch(subUrl, {
                 headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36" },
-                signal: AbortSignal.timeout(8000)
+                signal: AbortSignal.timeout(5000)
               });
               if (subRes.ok) {
                 const subHtml = await subRes.text();
@@ -234,6 +253,14 @@ export class WebsiteScraper implements LeadSourceScraper {
                     }
                   }
                 }
+                
+                const subSocialMatches = subHtml.match(/href="(https:\/\/(www\.)?(facebook|instagram|linkedin|twitter|youtube|tiktok)\.com\/[^"]+)"/gi) || [];
+                subSocialMatches.forEach(m => {
+                  const link = m.replace(/href="/i, "").replace(/"$/, "").trim();
+                  if (!link.includes("/share") && !link.includes("/sharer")) {
+                    socialsSet.add(link);
+                  }
+                });
               }
             } catch (e) {
               // Ignore subpage errors

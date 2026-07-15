@@ -98,6 +98,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const searchMutation = trpc.leads.search.useMutation();
@@ -116,9 +117,27 @@ export default function SearchPage() {
     }
   );
   
-  const getResultsMutation = trpc.leads.getScraperResults.useMutation();
+  const { data: quota } = trpc.leads.getDailyQuota.useQuery(undefined, { 
+    refetchInterval: activeRunIds.length > 0 ? 2000 : false 
+  });
+  
+  // Fetch real-time results as they are scraped
+  const { data: liveResults } = trpc.leads.getScraperResults.useQuery(
+    { runIds: activeRunIds },
+    { 
+      enabled: activeRunIds.length > 0,
+      refetchInterval: 2000 
+    }
+  );
 
-  // Industry Auto-fill
+  // Sync live results to state
+  useEffect(() => {
+    if (liveResults) {
+      setResults(liveResults);
+    }
+  }, [liveResults]);
+
+  // Handle polling completion
   useEffect(() => {
     if (!query.trim()) {
       if (autoIndustry) {
@@ -149,19 +168,18 @@ export default function SearchPage() {
     if (activeRunIds.length === 0 || !runStatuses) return;
     const allDone = runStatuses.every(s => s.status === 'completed' || s.status === 'failed');
     if (allDone) {
-      // Fetch final results
-      getResultsMutation.mutateAsync({ runIds: activeRunIds }).then((finalResults: SearchResult[]) => {
-        setResults(finalResults);
-        setLoading(false);
-        setSearched(true);
-        setActiveRunIds([]);
-      }).catch((e: Error) => {
-        console.error("Failed to fetch final results", e);
-        setLoading(false);
-        setActiveRunIds([]);
-      });
+      const failedRun = runStatuses.find(s => s.status === 'failed');
+      if (failedRun && failedRun.errorMessage) {
+        setErrorMsg(failedRun.errorMessage);
+      } else {
+        setErrorMsg(null);
+      }
+
+      setLoading(false);
+      setSearched(true);
+      // Do not clear activeRunIds, otherwise the liveResults query will fetch [] and wipe the results!
     }
-  }, [runStatuses, activeRunIds, getResultsMutation]);
+  }, [runStatuses, activeRunIds]);
 
   const toggleSource = useCallback((src: LeadSource) => {
     setActiveSources(prev =>
@@ -174,12 +192,13 @@ export default function SearchPage() {
     setLoading(true);
     setSearched(false);
     setResults([]);
+    setErrorMsg(null);
     try {
       const runIds = await searchMutation.mutateAsync({
         query,
         location: location || undefined,
         industry: industry || undefined,
-        sources: ["deep-discovery"] as any,
+        sources: activeSources as any,
       });
       if (runIds.length === 0) {
         setLoading(false);
@@ -262,7 +281,25 @@ export default function SearchPage() {
         <span style={{ fontSize: 12, color: "var(--ink-muted)", fontStyle: "italic" }}>
           Universal Lead Discovery - {enabledCount} source{enabledCount !== 1 ? "s" : ""} active
         </span>
+        
         <div style={{ flex: 1 }} />
+        
+        {quota && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 16 }}>
+            <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+              <strong style={{ color: "var(--ink)" }}>{quota.used}</strong> / {quota.limit} leads today
+            </span>
+            <div style={{ width: 100, height: 6, background: "var(--border-subtle)", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ 
+                height: "100%", 
+                background: quota.remaining === 0 ? "var(--error)" : "var(--primary)", 
+                width: `${Math.min(100, (quota.used / quota.limit) * 100)}%`,
+                transition: "width 0.3s ease"
+              }} />
+            </div>
+          </div>
+        )}
+
         {savedCount > 0 && (
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
@@ -343,16 +380,16 @@ export default function SearchPage() {
       {/* ── Results ──────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto" }}>
 
-        {/* Loading */}
+        {/* Loading Header */}
         {loading && (
-          <div style={{ padding: "24px 20px" }}>
+          <div style={{ padding: "24px 20px", paddingBottom: results.length > 0 ? 0 : "24px" }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
               <CircleNotch size={13} color="var(--primary)" style={{ animation: "spin 0.8s linear infinite" }} />
               <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                 Running scrapers across {enabledCount} source{enabledCount !== 1 ? "s" : ""} - merging results...
               </span>
             </div>
-            <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: results.length > 0 ? 0 : 20, flexWrap: "wrap" }}>
               {runStatuses && runStatuses.map((rs, i) => {
                 const isCompleted = rs.status === "completed";
                 const isFailed = rs.status === "failed";
@@ -368,7 +405,8 @@ export default function SearchPage() {
                 );
               })}
             </div>
-            {Array.from({ length: 5 }).map((_, i) => (
+            {/* If no results yet, show skeletons here */}
+            {results.length === 0 && Array.from({ length: 5 }).map((_, i) => (
               <div key={i} style={{ padding: "14px 0", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 14, alignItems: "center" }}>
                 <div className="skel-line" style={{ width: 36, height: 36, borderRadius: "var(--r-md)", flexShrink: 0 }} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
@@ -405,19 +443,23 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* No results */}
+        {/* No results or Error */}
         {!loading && searched && results.length === 0 && (
           <div className="empty-state">
             <Warning size={28} color="var(--ink-muted)" weight="light" />
             <div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)", marginBottom: 4 }}>No results found</div>
-              <em style={{ fontSize: 13, color: "var(--ink-muted)" }}>Try a different keyword, location, or enable more sources</em>
+              <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)", marginBottom: 4 }}>
+                {errorMsg ? "Search Failed" : "No results found"}
+              </div>
+              <em style={{ fontSize: 13, color: "var(--ink-muted)" }}>
+                {errorMsg ? errorMsg : "Try a different keyword, location, or enable more sources"}
+              </em>
             </div>
           </div>
         )}
 
         {/* Results */}
-        {!loading && searched && results.length > 0 && (
+        {results.length > 0 && (
           <div>
             {/* Results header */}
             <div style={{ padding: "9px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10, background: "var(--surface)", position: "sticky", top: 0, zIndex: 10 }}>
@@ -455,6 +497,22 @@ export default function SearchPage() {
                 />
               ))}
             </div>
+            
+            {/* Show trailing skeletons if still loading to indicate more are coming */}
+            {loading && (
+              <div style={{ padding: "14px 20px" }}>
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} style={{ padding: "14px 0", borderBottom: "1px solid var(--border-subtle)", display: "flex", gap: 14, alignItems: "center" }}>
+                    <div className="skel-line" style={{ width: 36, height: 36, borderRadius: "var(--r-md)", flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                      <div className="skel-line" style={{ width: `${55 + i * 8}%`, height: 12 }} />
+                      <div className="skel-line" style={{ width: `${30 + i * 5}%`, height: 10 }} />
+                    </div>
+                    <div className="skel-line" style={{ width: 56, height: 20, borderRadius: "var(--r-pill)" }} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // since the extension might not easily pass Clerk session without setup.
     let workspaceId = "";
     if (userId) {
-      const w = await db.workspace.findFirst({ where: { users: { some: { id: userId } } } });
+      const w = await db.workspace.findFirst({ where: { userId } });
       if (w) workspaceId = w.id;
     } else {
       const w = await db.workspace.findFirst();
